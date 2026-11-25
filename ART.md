@@ -2,7 +2,7 @@
 
 ## Thesis
 **T3 "Overcast snow", adapted to an alpine pass at the end of the day.** A grey-blue cloud deck over the Southern Alps with
-one burning gap above the western saddle: the sun at 14° pushes warm light straight down the car park and the closed highway,
+one burning gap above the western saddle (late afternoon, lamps still off): the sun at 14° pushes warm light straight down the car park and the closed highway,
 the north scree slope catches it on its ribs, the beech forest to the south stays cool and dark. Light snow flurries in the
 wind, meltwater puddles on dark asphalt mirroring the gap, a dusting of snow on every up-facing face. Distance goes blue
 (red extinguishes first); warmth only from the sun gap, cab lights and the amber road-closed flashers. Deadpan: the image is
@@ -22,6 +22,21 @@ adaptKey 0.21; surface wet 0.35, snow 0.35; weather snow 0.2, wind (2.5,0,0.8)).
 - Material albedo rule: no paint/livery above ~0.65 linear (tints 0xcc-0xd8 on white kit colours).
 - Interior probe: `?probe=0` A/Bs it. It must only go on interior-facing materials (main assigns `shelter.interior` when
   the carpark module provides it); on the whole group the exterior cladding reflects the dark room and renders black.
+
+### Look r2 log (A/B captures in shots/look-r2-work/ a, b, c)
+- Time of day committed: overcast late afternoon (~5 pm). Zenith (0.15,0.17,0.21), horizon (0.52,0.53,0.56); street lamps
+  dark (`ART.lamps.pole` 0, head emissive 0.15, no pools/halos); flashers + dim daytime shelter fluoro only.
+- Weather particles off (`ART.weather.particles` false): flakes/motes read as stars and dead pixels. Snow lives on the
+  ground (weathering `uSnow` = `surface.snow`). Snow thesis line is now "snow lying, not falling".
+- Exposure: `post.resetAdaptation()` on every `camset` (pose cut / teleport): no exposure drift under a frozen camera
+  (pose-4 whole-frame shimmer gone). adaptTau 1.2, adapt clamp 0.6–1.6, bloom threshold 1.7.
+- Foliage: alpha-to-coverage on every alpha-tested opaque material (main.js `stabiliseCutouts`); under `?shot` the
+  shared `uWind` is zeroed (contract: fixed-time stills). Canopy shimmer gone; grass tufts still crawl (terrain owner).
+- Rock/terrain: rough ×1.45, wet ×0.2 (dry rock never glosses). Ground: patchGround wet 0.6 (damp halos round puddles),
+  uGrRain 0.18 (soft ripple normals), uReflLod +0.6 (no mirror-glass puddles).
+- Far field: `ART.farfield` = 3 layered mountain rings (1500/950/560 m) with snowy tops at increasing haze depth,
+  replacing the terrain module's wilderness rings (cone treeline gone).
+- Shelter: the point light hangs 0.35 m under the batten (no ceiling hotspot), tube emissive 2.2, intensity 9.
 
 ## Palette (sRGB, roles)
 | Role | Hex |
