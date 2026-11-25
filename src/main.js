@@ -63,14 +63,14 @@ async function main() {
     initMaterials(G);
     const m = {
       ground: makeMaterial('asphalt', { weather: false }),
-      concrete: makeMaterial('concrete'), wood: makeMaterial('weathered_wood'), paint: makeMaterial('painted_metal', { tint: 0xffffff }),
+      concrete: makeMaterial('concrete'), wood: makeMaterial('weathered_wood'), paint: makeMaterial('painted_metal', { tint: 0xd2d2d2 }),
       steel: makeMaterial('galvanised'), rubber: makeMaterial('rubber'), rock: makeMaterial('rock', { triplanar: true }),
       terrain: makeMaterial('rock', { triplanar: true }), bark: makeMaterial('weathered_wood', { tint: 0x6a6058 }),
       shelterWood: makeMaterial('weathered_wood', { weather: 'sheltered' }), shelterSteel: makeMaterial('galvanised', { weather: 'sheltered' }),
       shelterConcrete: makeMaterial('concrete', { weather: 'sheltered' }), board: makeMaterial('painted_metal', { tint: 0x2a5a44, weather: 'sheltered' }),
       lamp: makeMaterial('emissive_panel', { emissive: 0xe8f0ff, emissiveIntensity: 6 }),
-      linePaint: makeMaterial('plastic', { tint: 0xe8e2d0 }), vanPaint: makeMaterial('painted_metal', { tint: 0xffffff }),
-      cloth: makeMaterial('tarp', { tint: 0xffffff, weather: 'sheltered' }), skin: makeMaterial('plastic', { tint: 0xc89a7a, weather: 'sheltered' }),
+      linePaint: makeMaterial('plastic', { tint: 0xe8e2d0 }), vanPaint: makeMaterial('painted_metal', { tint: 0xcccac6 }),
+      cloth: makeMaterial('tarp', { tint: 0xd8d8d8, weather: 'sheltered' }), skin: makeMaterial('plastic', { tint: 0xc89a7a, weather: 'sheltered' }),
       amber: new MeshStandardMaterial({ color: new Color(0.4, 0.2, 0.02), emissive: new Color(1.0, 0.45, 0.05), emissiveIntensity: 6, roughness: 0.3 }),
     };
     for (const k in m) if (k !== 'ground') m[k].vertexColors = true;
@@ -122,11 +122,16 @@ async function main() {
   const probe = await stage('probes', () => {
     if (!world.shelter) return {};
     const p = createProbe(G, { position: world.shelter.probeAt, box: world.shelter.box, hide: [weather.snow?.mesh, weather.dust?.mesh].filter(Boolean) });
-    p.assign(world.shelter.group, { intensity: 1.0 });
+    if (G.params.get('probe') !== '0') p.assign(world.shelter.interior || world.shelter.group, { intensity: 1.0 }); // ?probe=0: A/B; interior-only group when carpark provides it
     return own(p);
   }, { msg: 'Lighting the shelter', at: 0.76 });
 
-  await stage('post', () => createPost(G, { overlay: blower.overlay }), { msg: 'Grading the film', at: 0.8 });
+  await stage('post', () => {
+    const post = createPost(G, { overlay: blower.overlay });
+    // look-director post knobs (ART.grade covers the grade; these are the post-only ones)
+    Object.assign(post.params, ART.post || {});
+    return post;
+  }, { msg: 'Grading the film', at: 0.8 });
   await stage('audio', () => Audio.create(G, { blower }), { msg: 'Tuning the two-stroke', at: 0.84 });
   const game = await stage('game', () => Game.create(G, { input, colliders: world.colliders, vans, kea, possums, blower, cover: A.cover || [] }), { msg: 'Reading the shift brief', at: 0.88 });
   await stage('hud', () => Hud.create(G, { input, player: game.player, quality: Q, path: PATH, game, vans, blower }), { msg: 'Printing the signage', at: 0.92 });

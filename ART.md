@@ -8,8 +8,20 @@ wind, meltwater puddles on dark asphalt mirroring the gap, a dusting of snow on 
 (red extinguishes first); warmth only from the sun gap, cab lights and the amber road-closed flashers. Deadpan: the image is
 calm and beautiful; the comedy comes from the signs.
 
-Constants: `src/art.js` (sun elev 14 / azim 250, (1.0,0.80,0.60) x5; fog sigma (0.0052,0.0050,0.0046); agxMix 0.35;
-surface wet 0.35, snow 0.35; weather snow 0.2, wind (2.5,0,0.8)). Change one knob per critic round.
+Constants: `src/art.js` (look r1: sun elev 14 / azim 250, (1.0,0.70,0.42) x9.5; deck cover 0.80, burnGap 0.75, zenith
+slate (0.10,0.125,0.17); fog sigma (0.0052,0.0050,0.0046), scatter (0.40,0.46,0.56), falloff 0.045; env 1.25; grade
+agxMix 0.30, lookPower 1.16, sat 0.98, contrast 0.24, teal/amber split; `ART.post` volShaft 1.4, AO 3.0 @ 0.8 m,
+adaptKey 0.21; surface wet 0.35, snow 0.35; weather snow 0.2, wind (2.5,0,0.8)). Change one knob per critic round.
+
+### Look r1 log (A/B captures in shots/look-r1-work/)
+- base → a: sun 5 → 8 and warmer, fog scatter darker/cooler (was milky), zenith deeper, env 1.8 → 1.4.
+- a → b: deck 0.72 → 0.80, sharper, burnGap 0.75, glow 1.15, fog falloff 0.045 (sky stops going milky above the range).
+- b → c: grade contrast 0.24, lookPower 1.16, sat 0.98 (beech greens were cartoonish), stronger teal/amber split, vignette 0.32.
+- c → d: sun 9.5 + warmer, env 1.25 (more sun/shade ratio). d → e: zenith desaturated (pose 6 read as dusk lavender);
+  painted-metal / van / tarp tints capped (white vans clipped). e → f: `ART.post` (wired in main.js) shafts 1.4, AO 3.0.
+- Material albedo rule: no paint/livery above ~0.65 linear (tints 0xcc-0xd8 on white kit colours).
+- Interior probe: `?probe=0` A/Bs it. It must only go on interior-facing materials (main assigns `shelter.interior` when
+  the carpark module provides it); on the whole group the exterior cladding reflects the dark room and renders black.
 
 ## Palette (sRGB, roles)
 | Role | Hex |
