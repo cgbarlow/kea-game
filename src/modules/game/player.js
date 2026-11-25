@@ -1,15 +1,15 @@
-// First-person player: input (engine/input.js) → yaw/pitch, accelerated walk/sprint/crouch, jump, gravity,
+// game/player — first-person ranger (owned by the game module): input (engine/input.js) → yaw/pitch, accelerated walk/sprint/crouch, jump, gravity,
 // circle-vs-AABB collision against world colliders, spring-driven head bob + landing dip (engine/springs.js).
 //   create(G, { input, colliders }) → { update, position, yaw, pitch, teleport(pos, yaw), velocity, grounded }
 // Respects G.camLocked (captures/bench own the camera) and G.paused. Allocation-free update.
 import { Vector3, Euler } from 'three';
-import { Spring, damp } from '../cookbook/engine/springs.js';
-import { PLAYER as P, WORLD } from '../contracts.js';
+import { Spring, damp } from '../../cookbook/engine/springs.js';
+import { PLAYER as P, WORLD } from '../../contracts.js';
 
 export function create(G, { input, colliders = [] }) {
   const pos = new Vector3().fromArray(P.spawn), vel = new Vector3(), wish = new Vector3();
   const e = new Euler(0, 0, 0, 'YXZ');
-  const S = { position: pos, velocity: vel, yaw: P.spawnYaw, pitch: 0, grounded: true, eye: P.eye, enabled: true };
+  const S = { position: pos, velocity: vel, yaw: P.spawnYaw, pitch: 0, grounded: true, eye: P.eye, enabled: true, shake: 0 };
   const bob = new Spring(140, 13), land = new Spring(140, 13);
   let phase = 0, wasGrounded = true;
 
@@ -60,8 +60,10 @@ export function create(G, { input, colliders = [] }) {
     bob.update(dt); land.update(dt);
     S.eye = damp(S.eye, crouch ? P.crouchEye : P.eye, 12, dt);
     if (G.camLocked) return;
-    G.camera.position.set(pos.x, pos.y + S.eye + bob.x + land.x * 0.1, pos.z);
-    e.set(S.pitch, S.yaw, Math.sin(phase) * 0.004 * Math.min(1, hs / P.walk));
+    const sh = S.shake, t = G.t;                       // aftershock: layered sines (deterministic, no allocation)
+    const jx = sh * (Math.sin(t * 31.0) * 0.018 + Math.sin(t * 13.7) * 0.012), jy = sh * Math.sin(t * 27.3) * 0.014;
+    G.camera.position.set(pos.x + jx, pos.y + S.eye + bob.x + land.x * 0.1 + jy, pos.z + sh * Math.sin(t * 19.1) * 0.015);
+    e.set(S.pitch + sh * Math.sin(t * 23.0) * 0.006, S.yaw + sh * Math.sin(t * 17.0) * 0.005, Math.sin(phase) * 0.004 * Math.min(1, hs / P.walk) + sh * Math.sin(t * 11.0) * 0.012);
     G.camera.quaternion.setFromEuler(e);
   };
   S.teleport = (p, yaw = S.yaw) => { pos.fromArray(p); vel.set(0, 0, 0); S.yaw = yaw; S.pitch = 0; };
