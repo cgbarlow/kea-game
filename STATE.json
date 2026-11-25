@@ -1,9 +1,9 @@
 {
   "name": "Do Not Feed The Kea",
-  "phase": "lookdev",
+  "phase": "build",
   "round": 0,
   "created": "2026-11-25T22:37:08.492Z",
-  "updated": "2026-11-25T23:16:37.721Z",
+  "updated": "2026-11-25T23:21:07.805Z",
   "best": {
     "score": null,
     "round": null,
@@ -64,6 +64,10 @@
     {
       "t": "2026-11-25T22:55:50.713Z",
       "note": "phase → lookdev"
+    },
+    {
+      "t": "2026-11-25T23:21:07.691Z",
+      "note": "phase → build"
     }
   ],
   "look": {
@@ -71,6 +75,7 @@
       "shots": "shots/look-r1-work/f",
       "build": "dist/look.html"
     },
-    "r2": "done: D1 D3 D9 D10 D11(part) D15 D17 D2(canopy); module-owned: D4 D5 D6 D7 D8 D12 D13 D14 D16"
+    "r2": "done: D1 D3 D9 D10 D11(part) D15 D17 D2(canopy); module-owned: D4 D5 D6 D7 D8 D12 D13 D14 D16",
+    "locked": true
   }
 }
