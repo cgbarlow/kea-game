@@ -15,57 +15,122 @@
 <div id="ui" class="ui" data-state="boot">
   <!-- title: the live scene flies along PATH behind it (never a black first frame) -->
   <section id="title" class="screen screen-title" hidden>
-    <div class="title-block">
-      <p class="kicker" data-bind="kicker">Department of Pass Conservation &middot; Ranger shift 0417</p>
-      <h1 class="game-title">{{TITLE}}</h1>
-      <p class="tagline" data-bind="tagline">SH73 is closed. Three campervans are not. Protect them until the highway reopens.</p>
+    <div class="sign sign-title">
+      <div class="sign-rule">
+        <p class="sign-dept"><span class="fern" aria-hidden="true"></span>Department of Pass Conservation <span class="sep">/</span> Te Tari Huarahi Kati</p>
+        <h1 class="game-title">{{TITLE}}</h1>
+        <p class="tagline">SH73 is closed. Three campervans are not. Keep them intact until the highway reopens.</p>
+      </div>
     </div>
-    <nav class="menu">
-      <button class="btn btn-primary" data-act="start">Begin shift</button>
-      <button class="btn" data-act="settings">Settings</button>
-    </nav>
-    <p class="hint">Click to capture the mouse · WASD move · LMB blow · RMB turbo · C drop / hold · Esc pause</p>
+    <div class="mode-block">
+      <p class="label">Select duty roster</p>
+      <div class="modes" role="radiogroup" aria-label="Mode" data-modes></div>
+      <nav class="menu menu-row">
+        <button class="btn" data-act="settings" data-nav>Settings</button>
+      </nav>
+    </div>
+    <p class="hint"><b>WASD</b> move &nbsp; <b>Shift</b> sprint &nbsp; <b>LMB</b> blow &nbsp; <b>RMB</b> turbo &nbsp; <b>C</b> drop / hold &nbsp; <b>Esc</b> pause</p>
+    <p class="fineprint">Ranger-issue leaf blower supplied. Hearing protection available on request (form DPC-114, allow 6&ndash;8 weeks).</p>
   </section>
 
-  <section id="pause" class="screen screen-pause" hidden>
-    <h2 class="screen-heading">Paused</h2>
-    <nav class="menu">
-      <button class="btn btn-primary" data-act="resume">Resume</button>
-      <button class="btn" data-act="settings">Settings</button>
-      <button class="btn" data-act="restart">Restart</button>
-    </nav>
+  <section id="pause" class="screen screen-modal screen-pause" hidden>
+    <div class="sign sign-panel">
+      <div class="sign-rule">
+        <p class="sign-dept">Notice of temporary suspension</p>
+        <h2 class="screen-heading">Shift suspended</h2>
+        <p class="sign-body">The kea have not been informed. Your break is unpaid.</p>
+        <nav class="menu">
+          <button class="btn btn-primary" data-act="resume" data-nav>Resume shift</button>
+          <button class="btn" data-act="settings" data-nav>Settings</button>
+          <button class="btn" data-act="restart" data-nav>Restart shift</button>
+        </nav>
+      </div>
+    </div>
   </section>
 
-  <section id="settings" class="screen screen-settings" hidden>
-    <h2 class="screen-heading">Settings</h2>
-    <form class="settings-grid" onsubmit="return false">
-      <label>Quality
-        <select name="quality"><option value="auto">Auto</option><option value="low">Low</option><option value="med">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
-      </label>
-      <label>Mouse sensitivity <input name="sens" type="range" min="0.3" max="3" step="0.05" value="1"></label>
-      <label>Field of view <input name="fov" type="range" min="60" max="100" step="1" value="74"></label>
-      <label>Volume <input name="volume" type="range" min="0" max="1" step="0.01" value="0.8"></label>
-      <label class="check"><input name="invertY" type="checkbox"> Invert Y</label>
-    </form>
-    <nav class="menu"><button class="btn btn-primary" data-act="back">Back</button></nav>
+  <section id="settings" class="screen screen-modal screen-settings" hidden>
+    <div class="sign sign-panel">
+      <div class="sign-rule">
+        <p class="sign-dept">Form DPC-7 &middot; Equipment preferences</p>
+        <h2 class="screen-heading">Settings</h2>
+        <form class="settings-grid" onsubmit="return false">
+          <label><span>Rendering quality</span>
+            <select name="quality"><option value="auto">Auto (recommended by IT)</option><option value="low">Low</option><option value="med">Medium</option><option value="high">High</option><option value="ultra">Ultra (not budgeted)</option></select>
+          </label>
+          <label><span>Mouse sensitivity <output data-out="sens"></output></span><input name="sens" type="range" min="0.3" max="3" step="0.05" value="1"></label>
+          <label><span>Field of view <output data-out="fov"></output></span><input name="fov" type="range" min="60" max="100" step="1" value="74"></label>
+          <label><span>Volume <output data-out="volume"></output></span><input name="volume" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+          <label class="check"><input name="invertY" type="checkbox"> <span>Invert Y axis</span></label>
+        </form>
+        <p class="sign-body small">Changes take effect immediately. Complaints take effect never.</p>
+        <nav class="menu"><button class="btn btn-primary" data-act="back" data-nav>Back</button></nav>
+      </div>
+    </div>
   </section>
 
-  <!-- HUD skeleton: games fill these; keep it sparse (e.g. objective, prompt, ammo, damage edge) -->
+  <section id="end" class="screen screen-modal screen-end" hidden>
+    <div class="sign sign-panel sign-wide">
+      <div class="sign-rule">
+        <p class="sign-dept" data-end="kicker">Incident report &middot; Ranger shift 0417</p>
+        <h2 class="screen-heading" data-end="heading"></h2>
+        <p class="sign-body" data-end="sub"></p>
+        <dl class="end-stats" data-end="stats"></dl>
+        <p class="end-rating"><span>Performance rating</span><b data-end="rating"></b></p>
+        <nav class="menu menu-row">
+          <button class="btn btn-primary" data-act="restart" data-nav>Start another shift</button>
+          <button class="btn" data-act="title" data-nav>Return to title</button>
+        </nav>
+      </div>
+    </div>
+  </section>
+
+  <!-- in-shift HUD: hud/index.js fills it (text writes are value-guarded) -->
   <div id="hud" class="hud" hidden>
-    <div class="hud-objective" data-bind="objective"></div>
-    <div class="crosshair" aria-hidden="true"></div>
+    <div class="hud-timer sign">
+      <div class="sign-rule">
+        <span class="t-label">SH73 reopening estimate</span>
+        <span class="t-clock" data-h="clock">7:00</span>
+        <span class="t-note">(not guaranteed)</span>
+        <span class="t-track"><i data-h="track"></i></span>
+      </div>
+    </div>
+    <div class="hud-objective" data-bind="objective">Protect the campervans. Do not feed the kea.</div>
+    <div class="hud-strikes">
+      <span class="s-label">Procedure strikes</span>
+      <span class="s-boxes"><i></i><i></i><i></i></span>
+      <span class="s-note" data-h="strikeNote">3 strikes = stood down</span>
+    </div>
+    <div class="hud-vans" data-h="vans"><p class="v-head">Campervan register</p></div>
+    <div class="hud-banner" data-h="banner">
+      <span class="b-top" data-h="bTop">Aftershock alert</span>
+      <span class="b-main">Drop <i>&middot;</i> Cover <i>&middot;</i> Hold</span>
+      <span class="b-count" data-h="bCount">3</span>
+      <span class="b-sub" data-h="bSub"></span>
+    </div>
+    <div class="crosshair" aria-hidden="true"><i></i></div>
     <div class="hud-prompt" data-bind="prompt"></div>
     <div class="hud-subtitle" data-bind="subtitle"></div>
-    <div class="hud-status"><div class="bar"><i data-bind="health"></i></div><span data-bind="ammo"></span></div>
+    <div class="hud-toasts" data-h="toasts"></div>
+    <div class="hud-heat" data-h="heat">
+      <span class="h-label">Blower temp</span>
+      <span class="h-state" data-h="heatState">Nominal</span>
+      <span class="h-segs" data-h="segs"></span>
+      <span class="h-scale"><i>Nominal</i><i>Warm</i><i>Unwise</i></span>
+      <span class="h-turbo">Turbo (discouraged)</span>
+    </div>
     <div class="damage-edge" data-bind="damage"></div>
   </div>
 </div>
 
 <!-- loading screen: engine/boot.js drives .boot-bar>i width and .boot-msg text -->
 <div id="boot" class="ui boot">
-  <div class="boot-title">{{TITLE}}</div>
-  <div class="boot-msg">Loading</div>
-  <div class="boot-bar"><i></i></div>
+  <div class="boot-sign">
+    <div class="boot-kicker">Department of Pass Conservation</div>
+    <div class="boot-title">{{TITLE}}</div>
+    <div class="boot-msg">Loading</div>
+    <div class="boot-bar"><i></i></div>
+    <div class="boot-note">Please wait. Waiting is a core competency of this department.</div>
+  </div>
 </div>
 <noscript><p class="noscript">This game needs JavaScript and WebGL2.</p></noscript>
 <script>/*SCRIPT*/</script>

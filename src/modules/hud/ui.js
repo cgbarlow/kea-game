@@ -1,81 +1,161 @@
-// UI state machine over the DOM in template.html: title (live PATH flyover) → playing ⇄ paused, settings.
-//   create(G, { input, player, quality, path }) → { state, setState(s), set(bind, value), update }
-//   ui.set('objective', 'Reach the crane'); ui.set('health', 0.6); ui.set('prompt', '[E] Open')
-// ?shot=1 or ?autostart=1 skips the title (captures/bots). Settings persist in localStorage (try/catch).
-// Sets G.paused while not playing (player/actors should idle on it).
+// hud/ui — menu state machine over the DOM in template.html:
+//   boot → title (live PATH flyover + mode selector) → playing ⇄ paused, settings, ended.
+//   create(G, { input, player, quality, path }) → { state, settings, modes, setState(s), set(bind, v), start(modeId), update }
+// Mode selector is data-driven (MODES): v1 ships RANGER; KEA is listed, disabled and tagged "coming soon" until v2
+// enables the entry. start() only ever accepts an enabled mode and sets G.mode.
+// Keyboard: arrows move focus between the visible screen's [data-nav] controls (left/right across mode cards),
+// Enter/Space activates. ?shot=1 / ?autostart=1 skip the title by starting RANGER (captures, playtest bot).
+// Settings persist in localStorage (try/catch; never read under ?shot so captures stay deterministic).
+// Sets G.paused while not playing (player/actors idle on it).
 import { CatmullRomCurve3, Vector3 } from 'three';
 
-const KEY = 'onefile.settings.v1';
+export const MODES = [
+  { id: 'ranger', label: 'Ranger', enabled: true, tag: 'Rostered',
+    note: 'Seven-minute shift. Protect three campervans from kea and possums with the ranger-issue leaf blower.' },
+  { id: 'kea', label: 'Kea', enabled: false, tag: 'Coming soon',
+    note: 'Pending risk assessment. The kea have requested representation.' },
+];
+
+const KEY = 'dnftk.settings.v1';
+const SCREENS = ['title', 'pause', 'settings', 'end'];
+
 export function create(G, { input, player, quality, path }) {
   const $ = (s) => document.querySelector(s);
-  const el = { ui: $('#ui'), title: $('#title'), pause: $('#pause'), settings: $('#settings'), hud: $('#hud') };
+  const el = { ui: $('#ui'), hud: $('#hud') };
+  for (const s of SCREENS) el[s] = $('#' + s);
   const binds = {}; document.querySelectorAll('[data-bind]').forEach((n) => { binds[n.dataset.bind] = n; });
+  const shot = !!G.params.get('shot');
   const settings = { quality: 'auto', sens: 1, fov: G.camera.fov, volume: 0.8, invertY: false };
-  try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* blocked storage */ }
-  const U = { state: 'boot', settings };
+  if (!shot) { try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* blocked storage */ } }
+  const U = { state: 'boot', settings, modes: MODES };
   let back = 'title';
 
-  function apply() {
+  // ---- settings ----
+  const form = el.settings?.querySelector('form');
+  const outs = {}; el.settings?.querySelectorAll('[data-out]').forEach((n) => { outs[n.dataset.out] = n; });
+  const fmt = { sens: (v) => (+v).toFixed(2) + '×', fov: (v) => Math.round(v) + '°', volume: (v) => Math.round(v * 100) + '%' };
+  function apply(persist) {
     input.sens = 0.0022 * settings.sens; input.invertY = !!settings.invertY;
-    G.camera.fov = +settings.fov; G.camera.updateProjectionMatrix();
+    if (!shot) { G.camera.fov = +settings.fov; G.camera.updateProjectionMatrix(); }
     if (settings.quality !== 'auto' && quality && settings.quality !== G.quality.tier) { G.quality.pinned = true; quality.setTier(settings.quality, 'settings'); }
     if (settings.quality === 'auto' && G.quality.pinned && !G.params.get('q')) G.quality.pinned = false;
     G.mods?.audio?.setVolume?.(+settings.volume);
-    try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
+    for (const k in outs) outs[k].textContent = fmt[k] ? fmt[k](settings[k]) : String(settings[k]);
+    if (persist) { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ } }
   }
-  const form = el.settings?.querySelector('form');
   if (form) {
     for (const k in settings) { const f = form.elements[k]; if (!f) continue; if (f.type === 'checkbox') f.checked = !!settings[k]; else f.value = settings[k]; }
     form.addEventListener('input', () => {
       for (const k in settings) { const f = form.elements[k]; if (!f) continue; settings[k] = f.type === 'checkbox' ? f.checked : f.type === 'range' ? +f.value : f.value; }
-      apply();
+      apply(true);
     });
   }
-  apply();
+  if (!shot && quality) apply(false); else for (const k in outs) outs[k].textContent = fmt[k] ? fmt[k](settings[k]) : String(settings[k]);
 
+  // ---- mode selector (data-driven) ----
+  const modesEl = el.title?.querySelector('[data-modes]');
+  const cards = [];
+  if (modesEl) for (const m of MODES) {
+    const b = document.createElement('button');
+    b.className = 'mode' + (m.enabled ? '' : ' is-disabled'); b.type = 'button';
+    b.dataset.mode = m.id; b.dataset.nav = ''; b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', m.id === 'ranger' ? 'true' : 'false');
+    if (!m.enabled) b.setAttribute('aria-disabled', 'true');
+    b.innerHTML = `<span class="m-tag"></span><span class="m-label"></span><span class="m-note"></span>${m.enabled ? '<span class="m-go">Begin shift ▸</span>' : ''}`;
+    b.querySelector('.m-tag').textContent = m.tag; b.querySelector('.m-label').textContent = m.label; b.querySelector('.m-note').textContent = m.note;
+    modesEl.appendChild(b); cards.push(b);
+  }
+  U.start = (id) => {
+    const m = MODES.find((x) => x.id === id);
+    if (!m || !m.enabled) {
+      const c = cards.find((x) => x.dataset.mode === id);
+      if (c) { c.classList.remove('denied'); void c.offsetWidth; c.classList.add('denied'); }
+      G.emit('ui:denied', id);
+      return false;
+    }
+    G.mode = m.id; U.setState('playing'); return true;
+  };
+
+  // ---- state machine ----
+  const focusFirst = (s) => {
+    const root = el[s === 'paused' ? 'pause' : s === 'ended' ? 'end' : s];
+    if (!root) return;
+    const f = root.querySelector(s === 'title' ? '[data-mode="ranger"]' : '.btn-primary') || root.querySelector('[data-nav]');
+    if (f) try { f.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+  };
   U.setState = (s) => {
     if (s === U.state) return;
     const prev = U.state; U.state = s; el.ui.dataset.state = s;
-    el.title.hidden = s !== 'title'; el.pause.hidden = s !== 'paused'; el.settings.hidden = s !== 'settings'; el.hud.hidden = s !== 'playing';
+    el.title.hidden = s !== 'title'; el.pause.hidden = s !== 'paused'; el.settings.hidden = s !== 'settings';
+    el.end.hidden = s !== 'ended'; el.hud.hidden = s !== 'playing';
     G.paused = s !== 'playing';
     input.enabled = s === 'playing';
     if (player) player.enabled = s === 'playing';
-    if (s === 'playing' && prev !== 'playing' && !G.params.get('shot') && input.mode === 'lock') input.requestLock();
-    if (s === 'playing' && prev === 'title' && player) G.camLocked = false;
+    if (s === 'playing' && prev !== 'playing' && !shot && !U.noLock && input.mode === 'lock') input.requestLock();
+    if (s === 'playing' && prev === 'title' && player && !U.noLock) G.camLocked = false;
     if (s !== 'playing' && document.pointerLockElement) document.exitPointerLock();
+    if (s !== 'playing') focusFirst(s);
     G.emit('ui:state', s, prev);
   };
   U.set = (k, v) => {
     const n = binds[k]; if (!n) return;
-    if (k === 'health') n.style.width = Math.max(0, Math.min(1, v)) * 100 + '%';
-    else if (k === 'damage') n.style.opacity = String(v);
-    else n.textContent = v ?? '';
+    if (k === 'damage') n.style.opacity = String(v);
+    else if (n.textContent !== (v ?? '')) n.textContent = v ?? '';
   };
 
+  const act = (a) => {
+    if (a === 'resume') U.setState('playing');
+    else if (a === 'settings') { back = U.state; U.setState('settings'); }
+    else if (a === 'back') U.setState(back);
+    else if (a === 'restart') { G.emit('restart'); U.setState('playing'); }
+    else if (a === 'title') { G.emit('restart'); U.setState('title'); }
+  };
   el.ui.addEventListener('click', (e) => {
-    const act = e.target.closest('[data-act]')?.dataset.act; if (!act) return;
-    if (act === 'start' || act === 'resume') U.setState('playing');
-    else if (act === 'settings') { back = U.state; U.setState('settings'); }
-    else if (act === 'back') U.setState(back);
-    else if (act === 'restart') { G.emit('restart'); U.setState('playing'); }
+    const m = e.target.closest('[data-mode]'); if (m) { U.start(m.dataset.mode); return; }
+    const a = e.target.closest('[data-act]')?.dataset.act; if (a) act(a);
+  });
+  // keyboard navigation for menus (arrows / Enter); in-shift keys belong to engine/input.js
+  window.addEventListener('keydown', (e) => {
+    if (U.state === 'playing' || U.state === 'boot') return;
+    const root = el[U.state === 'paused' ? 'pause' : U.state === 'ended' ? 'end' : U.state];
+    if (!root) return;
+    const nav = root.querySelectorAll('[data-nav]');
+    if (!nav.length) return;
+    let i = Array.prototype.indexOf.call(nav, document.activeElement);
+    const k = e.code;
+    if (k === 'ArrowDown' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowLeft') {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'SELECT') return;
+      i = i < 0 ? 0 : (i + (k === 'ArrowDown' || k === 'ArrowRight' ? 1 : nav.length - 1)) % nav.length;
+      nav[i].focus({ preventScroll: true }); e.preventDefault();
+    } else if (k === 'Enter' || k === 'NumpadEnter') {
+      const f = i >= 0 ? nav[i] : null;
+      if (f?.dataset.mode) U.start(f.dataset.mode);
+      else if (f?.dataset.act) act(f.dataset.act);
+      else if (U.state === 'title') U.start('ranger');
+      e.preventDefault();
+    }
   });
   G.on('input:unlock', () => { if (U.state === 'playing' && input.mode === 'lock') U.setState('paused'); });
 
-  // title flyover along PATH (slow, looping); bench/captures that lock the camera win
+  // ---- title flyover along PATH (slow, looping); bench/captures that lock the camera win ----
   const P = path && path.length > 1 ? path : null;
   const cp = P && new CatmullRomCurve3(P.map((k) => new Vector3(k[0], k[1], k[2])), true, 'centripetal');
   const ct = P && new CatmullRomCurve3(P.map((k) => new Vector3(k[3], k[4], k[5])), true, 'centripetal');
   const a = new Vector3(), b = new Vector3();
   let flyT = 0;
   U.update = (dt) => {
-    if (input.pressed('pause')) { if (U.state === 'playing') U.setState('paused'); else if (U.state === 'paused') U.setState('playing'); }
+    if (input.pressed('pause')) {
+      if (U.state === 'playing') U.setState('paused');
+      else if (U.state === 'paused') U.setState('playing');
+      else if (U.state === 'settings') U.setState(back);
+    }
     if (U.state === 'title' && cp && !G.camLocked) {
       flyT = (flyT + dt / 60) % 1;
       cp.getPointAt(flyT, a); ct.getPointAt(flyT, b);
       G.camera.position.copy(a); G.camera.lookAt(b);
     }
   };
-  const auto = G.params.get('shot') || G.params.get('autostart');
-  G.on('ready', () => U.setState(auto ? 'playing' : 'title'));
+  const auto = shot || G.params.get('autostart');
+  G.on('ready', () => { if (U.state !== 'boot') return; if (auto) U.start('ranger'); else U.setState('title'); });
   return U;
 }
