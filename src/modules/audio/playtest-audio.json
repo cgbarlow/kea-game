@@ -1,0 +1,27 @@
+{
+  "query": "autostart=1&seed=4207",
+  "w": 1280, "h": 720,
+  "steps": [
+    { "waitFor": "__G.mods.ui && __G.mods.ui.state === 'playing'", "timeout": 15000 },
+    { "click": [640, 360] },
+    { "waitFor": "__G.mods.audio.ready && __G.mods.audio.mixer.ctx.state === 'running'", "timeout": 60000 },
+    { "assert": "!__G.mods.audio.isStub", "msg": "audio module booted (not stub)" },
+    { "waitFor": "__G.mods.audio.musicReady && __G.mods.audio.music", "timeout": 60000 },
+    { "eval": "__G.mods.audio.mixer.voiceCount", "as": "v0" },
+    { "assert": "__pt.v0 >= 5 && !!__G.mods.audio.music", "msg": "beds running: wind + 4 blower loops (+ music stems on their own sources)" },
+    { "eval": "__G.mods.blower.forceFire = true" },
+    { "wait": 1500 },
+    { "eval": "__G.mods.blower.power", "as": "pw" },
+    { "assert": "__pt.pw > 0.2 && __G.mods.audio.engine.started && __G.mods.audio.engine.last[1] > 0.05", "msg": "blower spooled and the rev layer is up" },
+    { "eval": "__G.mods.blower.forceFire = false" },
+    { "eval": "['kea_arrive','kea_offended','kea_alarm','kea_peck','possum_hiss','possum_chatter','trap_thunk','phone_alert','quake_rumble','alpine_wind','sting_win','blower_turbo'].every(n => __G.mods.audio.mixer.has(n))", "as": "banks" },
+    { "assert": "__pt.banks", "msg": "every bespoke bank present" },
+    { "eval": "__G.emit('game:alert','alert'), __G.emit('game:alert','shake'), __G.emit('possum:trapped', null, 1), __G.emit('game:strike', 1), 1" },
+    { "wait": 800 },
+    { "eval": "__G.emit('game:alert','clear', true), __G.mods.audio.mixer.voiceCount", "as": "v1" },
+    { "eval": "__audioSelfTest({verbose:false}).then(r => (window.__st = r, r.pass + ' ' + r.count + ' ' + r.failed.join(',')))", "as": "stp" },
+    { "waitFor": "window.__st", "timeout": 120000 },
+    { "assert": "window.__st.pass", "msg": "audio self-test: peak <= -1 dBFS, no NaN, none silent" },
+    { "eval": "JSON.stringify(window.__st.rows.map(r => [r.name, r.peakDb, r.rmsDb]))" }
+  ]
+}
