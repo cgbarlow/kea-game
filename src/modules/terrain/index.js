@@ -27,6 +27,8 @@ export function create(G, { mats }) {
   const mat = mats.terrain;
   mat.name = 'terrain'; mat.vertexColors = true;
   patchSplat(mat, { ref: 0.2, snowLine: 115 });
+  if (mat.userData.wth) mat.userData.wth.a.z = 0;
+  if (mat.normalScale) mat.normalScale.multiplyScalar(0.6);                // the bake's tile reads on 50-150 m slopes at full strength                       // the splat owns terrain snow (slope/altitude/lee/gullies)
 
   const resOf = (cx, cz, size) => {
     const h = size / 2;
@@ -40,10 +42,11 @@ export function create(G, { mats }) {
     if (low) return d < 50 ? 2 : 4;
     return d < 70 ? 1 : d < 170 ? 2 : 4;
   };
-  const attrib = (x, z, y, out, lap) => {
+  const curv = curvature(fn);
+  const attrib = (x, z, y, out) => {
     out[0] = sstep(0.15, 0.6, forestMask(x, z));
     out[1] = slipMask(x, z);
-    out[2] = clamp(sstep(0.004, 0.05, lap) * sstep(4, 20, y) + 0.5 * sstep(40, 110, y) * sstep(0.0, 0.02, lap + 0.01), 0, 1);
+    out[2] = curv(x, z);                                                   // -1 ridge / rib .. +1 gully / hollow (resolution independent)
     out[3] = roadMask(x, z);
   };
   const T = lodTerrain({ fn, ext: EXT, cell: 16, chunk: 14, resOf, attrib, material: mat });
@@ -67,5 +70,29 @@ export function create(G, { mats }) {
   };
 }
 
-// slip close-up from the car park's east end: lobe, boulders, snapped trunks, scar and scree benches behind
-export function showcase() { return { cam: [40, 8, 6], target: [50, 3, -19] }; }
+// terrain curvature from a fixed 6 m grid (two scales: 6 m and 18 m), so snow and colour do not change with the mesh
+// LOD; signed, clamped -1..1 (positive = concave)
+function curvature(fn) {
+  const R = 6, N = Math.ceil((2 * EXT) / R) + 7, o = -EXT - 3 * R, H = new Float32Array(N * N), C = new Float32Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) H[i + j * N] = fn(o + i * R, o + j * R);
+  for (let j = 3; j < N - 3; j++) for (let i = 3; i < N - 3; i++) {
+    const p = i + j * N, h = H[p];
+    const l1 = (H[p - 1] + H[p + 1] + H[p - N] + H[p + N] - 4 * h) / (R * R);
+    const l3 = (H[p - 3] + H[p + 3] + H[p - 3 * N] + H[p + 3 * N] - 4 * h) / (9 * R * R);
+    C[p] = clamp((l1 * 0.6 + l3 * 1.2) * 3.2, -1, 1);
+  }
+  return (x, z) => {
+    const fi = clamp((x - o) / R, 0, N - 1.001), fj = clamp((z - o) / R, 0, N - 1.001), i = Math.floor(fi), j = Math.floor(fj), a = fi - i, b = fj - j, p = i + j * N;
+    return (C[p] * (1 - a) + C[p + 1] * a) * (1 - b) + (C[p + N] * (1 - a) + C[p + N + 1] * a) * b;
+  };
+}
+
+// east along the closed road with the low sun behind: the kerb line and the road-closed barriers lead to the slip and
+// its toe fan across SH73, the gap beside it opens onto the snowy spur that closes the valley. Scenery shot: the viewmodel and the air motes are hidden.
+export function showcase(G) {
+  G.on?.('ready', () => {
+    const bl = G.mods?.blower; if (bl) { bl.enabled = false; bl.forceFire = false; if (bl.overlay?.scene) bl.overlay.scene.visible = false; }   // no viewmodel, no airflow puffs
+    const d = G.mods?.weather?.dust?.mesh; if (d) d.visible = false;
+  });
+  return { cam: [22, 2.7, 3], target: [56, 3.4, -16] };
+}

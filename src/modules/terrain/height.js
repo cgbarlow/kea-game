@@ -72,6 +72,7 @@ export function heightFn() {
       // the slip scar: the slope above SH73 scooped out, fresh rock, feeding the lobe
       const sx = (x - S.x) / 17, su = (u - 45) / 38;
       n -= 13 * Math.exp(-(sx * sx + su * su)) * sstep(0, 12, u);
+      n -= 5.5 * Math.exp(-sx * sx * 1.6) * sstep(1.12, 0.98, su + (vnoise2(x * 0.08, 7.7, SEED + 53) - 0.5) * 0.12) * sstep(-0.9, 0.3, su);   // crown scarp: the fresh head wall
       h += Math.max(n, 0.12 * u) * sstep(0, 2, u);
     }
     if (v > 0) { // south wall: beech forest slope, lumpy spurs
@@ -79,13 +80,11 @@ export function heightFn() {
       n += macro(x + 700, z) * (6 + 35 * sstep(20, 250, v)) * sstep(0, 15, v) + (fbm2(x * 0.06, z * 0.06, 3, SEED + 40) - 0.5) * 2.4 * sstep(0, 8, v);
       h += Math.max(n, 0.1 * v) * sstep(0, 2, v);
     }
-    // the slip: a debris lobe across SH73 from the north, lumpy, steeper at its toe
-    const lx = (x - S.x) / (x < S.x ? 18.5 : 22), lz = (z - S.z) / (S.r * 1.3);
-    const lr = lx * lx + lz * lz;
-    if (lr < 1) {
-      const s = Math.pow(1 - lr, 1.4);                                          // compact dome: toe ends at r (east of the gate)
-      const lump = (fbm2(x * 0.35, z * 0.35, 3, SEED + 50) - 0.5) * 1.6 + (fbm2(x * 0.9, z * 0.9, 2, SEED + 51) - 0.5) * 0.5;
-      h = Math.max(h, BENCH.y) + s * S.h * (0.85 + 0.15 * vnoise2(x * 0.2, z * 0.2, SEED + 52)) + lump * sstep(0.0, 0.25, s) * 0.9;
+    // the slip: an asymmetric spill out of the scar, thick at the head, a lobate fan-shaped toe across SH73
+    const sl = slipShape(x, z);
+    if (sl.s > 0) {
+      const lump = (fbm2(x * 0.35, z * 0.35, 3, SEED + 50) - 0.5) * 1.4 + (fbm2(x * 0.9, z * 0.9, 2, SEED + 51) - 0.5) * 0.45;
+      h = Math.max(h, BENCH.y) + sl.s * S.h + lump * sstep(0.0, 0.2, sl.s) * 0.9;
     }
     return h;
   };
@@ -101,10 +100,32 @@ export function forestMask(x, z) {
   const east = x > 95 ? sstep(-25, 45, 250 - x + (vnoise2(z * 0.02, 1.7, SEED + 62) - 0.5) * 90) : 1;                         // valley floor east is open tussock
   return clamp(edge * gaps * east, 0, 1);
 }
+// the debris body: t runs 0 at the head (in the scar mouth, north) to 1 at the toe (south, across the road); the
+// fan widens and drifts east toward the toe, the toe is lobate, the flanks carry low levees, pressure ridges near the toe.
+//   → { s: thickness / S.h (0..~1.15), t, q: -1..1 across, e: 0 inside .. 1 at the outline }
+const _sl = { s: 0, t: 0, q: 0, e: 1 };
+export function slipShape(x, z) {
+  const t = (z - (S.z - 19.5)) / 39;
+  _sl.s = 0; _sl.t = t; _sl.q = 2; _sl.e = 1;
+  if (t < -0.05 || t > 1.1) return _sl;
+  const tc = clamp(t, 0, 1);
+  const cx = S.x - 1 + 4 * tc * tc, w = 14 + 8 * sstep(0.15, 1, tc) + (vnoise2(z * 0.09, 4.1, SEED + 54) - 0.5) * 3;
+  const q = (x - cx) / w;
+  _sl.q = q;
+  const tEnd = 0.93 + 0.08 * vnoise2(x * 0.11, 1.3, SEED + 55) - 0.05 * q * q;   // lobate snout, flanks run out sooner
+  if (Math.abs(q) >= 1 || t >= tEnd) return _sl;
+  const lat = Math.pow(1 - q * q, 0.95) + 0.18 * Math.exp(-Math.pow((Math.abs(q) - 0.78) / 0.1, 2)) * tc;   // levees
+  const toe = Math.pow(sstep(tEnd, tEnd - 0.14, t), 0.8);
+  const head = sstep(-0.05, 0.18, t);
+  const ridges = Math.sin(t * 46 + vnoise2(x * 0.06, z * 0.03, SEED + 56) * 7) * 0.05 * sstep(0.45, 0.85, t);
+  _sl.s = Math.max(0, (1.1 - 0.58 * tc) * lat * toe * head + ridges * lat * toe);
+  _sl.e = Math.max(Math.abs(q), clamp((t - (tEnd - 0.13)) / 0.13, 0, 1));
+  return _sl;
+}
 export function slipMask(x, z) {
-  const lx = (x - S.x) / (x < S.x ? 20 : 24), lz = (z - S.z) / (S.r * 1.45);
-  const lobe = Math.max(0, 1 - lx * lx - lz * lz);
+  const sl = slipShape(x, z);
+  const lobe = sl.q > 1.5 ? 0 : sstep(0.0, 0.08, sl.s);
   const u = -(z - axisZ(x)) - BENCH.half, sx = (x - S.x) / 19, su = (u - 45) / 45;
   const scar = Math.exp(-(sx * sx + su * su)) * sstep(-4, 8, u);
-  return clamp(Math.max(sstep(0.0, 0.25, lobe), sstep(0.15, 0.45, scar)), 0, 1);
+  return clamp(Math.max(lobe, sstep(0.15, 0.45, scar)), 0, 1);
 }
