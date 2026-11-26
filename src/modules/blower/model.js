@@ -12,6 +12,7 @@ import { makeMaterial } from '../../cookbook/materials/library.js';
 import { ringLoft, alongAxis, ribProfile } from './geo.js';
 import { buildHand } from './hand.js';
 import { buildStickers } from './stickers.js';
+import { addMouldDetail, bakeWear } from './detail.js';
 
 const ORANGE = 0xc04810, ORANGE_W = 0xa03c12, HOUSE = 0x606366, HOUSE_D = 0x3a3c3f, CREAM = 0x8c8b86, GREY = 0x3c3e40, DARK = 0x1b1c1d, TANK = 0x9c937f, FUEL = 0xa65a30;
 const V = (x, y, z) => new Vector3(x, y, z);
@@ -44,7 +45,7 @@ export function buildBlower(G) {
   for (let i = 0; i < 6; i++) { const a = i * 1.047 + 0.2; k.cyl(0.0045, 0.006, 'metal', { at: [-0.087, -0.17 + Math.sin(a) * 0.104, 0.02 + Math.cos(a) * 0.104], rot: [0, 0, Math.PI / 2], seg: 12, occ: false }); }
 
   // ---------------------------------------------------------------- engine shroud (right) + cooling slats
-  k.box(0.08, 0.2, 0.27, 'plastic', { at: [0.082, -0.16, 0.02], r: 0.03, color: ORANGE });
+  k.box(0.08, 0.2, 0.27, 'plastic', { at: [0.082, -0.16, 0.02], r: 0.03, step: 0.02, color: ORANGE });
   for (let i = 0; i < 9; i++) k.box(0.058, 0.005, 0.0045, 'plastic', { at: [0.07, -0.0595, 0.03 - i * 0.0095], r: 0.0015, color: ORANGE_W, occ: false });
   k.box(0.064, 0.004, 0.09, 'plastic', { at: [0.07, -0.0612, -0.008], r: 0.0015, color: 0x0e0e0e, occ: false }); // slot shadow bed
   for (let i = 0; i < 2; i++) k.cyl(0.004, 0.004, 'metal', { at: [0.082, -0.059, -0.1 + i * 0.21], seg: 12, occ: false });   // shroud screws
@@ -56,14 +57,14 @@ export function buildBlower(G) {
   k.add(alongAxis(lathe([[0, 0], [0.008, 0], [0.0105, 0.004], [0.0115, 0.035], [0.0105, 0.066], [0.008, 0.07], [0, 0.07]], { seg: 20 }), [0.113, -0.055, 0.04], [0.113, -0.055, 0.11]), 'rubber', { occ: false });
 
   // ---------------------------------------------------------------- air-filter cover (rear), ribbed, knurled knob
-  k.box(0.17, 0.13, 0.065, 'plastic', { at: [0.02, -0.135, 0.17], r: 0.024, color: HOUSE });
+  k.box(0.17, 0.13, 0.065, 'plastic', { at: [0.02, -0.135, 0.17], r: 0.024, step: 0.02, color: HOUSE });
   for (let i = 0; i < 11; i++) k.box(0.005, 0.095, 0.006, 'plastic', { at: [-0.045 + i * 0.012, -0.14, 0.2025], r: 0.002, color: HOUSE_D, occ: false });
   const knob = lathe([[0, 0], [0.019, 0], [0.021, 0.003], [0.021, 0.013], [0.017, 0.017], [0, 0.017]], { seg: 24 });
   k.add(alongAxis(knob, [0.02, -0.135, 0.2], [0.02, -0.135, 0.22]), 'plastic', { color: ORANGE, occ: false });
   for (let i = 0; i < 12; i++) { const a = i * 0.5236; k.box(0.003, 0.003, 0.012, 'plastic', { at: [0.02 + Math.cos(a) * 0.021, -0.135 + Math.sin(a) * 0.021, 0.209], r: 0.001, color: ORANGE_W, occ: false }); }
 
   // ---------------------------------------------------------------- fuel tank (underneath), window, cap + tether
-  k.box(0.17, 0.075, 0.25, 'plastic', { at: [0.012, -0.292, 0.035], r: 0.026, color: TANK });
+  k.box(0.17, 0.075, 0.25, 'plastic', { at: [0.012, -0.292, 0.035], r: 0.026, step: 0.02, color: TANK });
   k.box(0.004, 0.036, 0.12, 'glass', { at: [-0.0745, -0.29, 0.075], r: 0.0018, occ: false });
   k.box(0.003, 0.016, 0.116, 'plastic', { at: [-0.0712, -0.3, 0.075], r: 0.001, color: FUEL, occ: false });
   for (let i = 0; i < 5; i++) k.box(0.0015, 0.0012, i % 2 ? 0.008 : 0.014, 'plastic', { at: [-0.0772, -0.302 + i * 0.006, 0.13], r: 0.0004, color: DARK, occ: false });
@@ -117,6 +118,8 @@ export function buildBlower(G) {
   // stickers on the tube (wrapped), the departmental warning on top-left so the player reads it
   st.onTube(k, 'kea', 0.15, -0.3, 2.2, 0.0437);
   k.pop();
+  // secondary forms: seams, screw towers, louvres, panel breaks, nozzle skid ribs
+  addMouldDetail(k, { M });
   // left-face stickers + serial plate + fuel + ears + hot
   st.place(k, 'issue', 0.064, [0.08, -0.0594, 0.086], [-Math.PI / 2, 0, Math.PI / 2]);
   
@@ -129,14 +132,15 @@ export function buildBlower(G) {
   buildHand(k);
 
   // ---------------------------------------------------------------- bake: contact AO + grime (dust in the ribs, fuel stains)
+  bakeWear(k, { T0, TD });
   k.bakeAO({ radius: 0.05, samples: 12, strength: 0.6, keys: ['plastic', 'metal', 'rubber', 'glove'] });
   k.grime({ base: -0.33, foot: 0.06, down: 0.3, streak: 0.25, dirt: [0.62, 0.55, 0.45], scale: 14, seed: 41 }, ['plastic', 'metal']);
   k.grime({ base: -0.4, foot: 0.0, down: 0.2, streak: 0.0, dirt: [0.7, 0.62, 0.5], scale: 20, seed: 7 }, ['glove']);
 
   const tint = 0xffffff;
-  const sheltered = { preset: 'sheltered', dust: 0.4, edge: 0.3 };
+  const sheltered = { preset: 'sheltered', dust: 0.65, edge: 0.7, macro: 1.4 };
   const mats = {
-    plastic: makeMaterial('plastic', { tint, scale: 0.12, rough: 1.0, normal: 1.6, weather: sheltered }),
+    plastic: makeMaterial('plastic', { tint, scale: 0.12, rough: 1.15, normal: 1.8, weather: sheltered }),
     rubber: makeMaterial('rubber', { tint: 0x5a5a5a, scale: 0.12, weather: { preset: 'sheltered', dust: 0.6 } }),
     metal: makeMaterial('galvanised', { tint: 0x8a8c8e, scale: 0.18, rough: 1.1, weather: { preset: 'sheltered', dust: 0.5 } }),
     glove: makeMaterial('tarp', { tint, scale: 0.09, rough: 1.15, normal: 0.6, weather: { preset: 'sheltered', dust: 0.3 } }),

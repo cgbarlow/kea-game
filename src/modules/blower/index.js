@@ -18,7 +18,7 @@ import { createAirflow } from './airflow.js';
 
 const RANGE = 9, COS_CONE = Math.cos(0.26), PUSH = 38;
 // rest pose of the model in view space (camera at origin looking -Z): grip low right, tube converging on the reticle
-const REST = { x: 0.2, y: -0.1, z: -0.6, rx: 0.1, ry: 0.17, rz: -0.04 };
+const REST = { x: 0.22, y: -0.06, z: -0.72, rx: 0.12, ry: 0.13, rz: -0.04 };
 const _v = new Vector3(), _q = new Quaternion(), _qi = new Quaternion(), _fwd = new Vector3(), _right = new Vector3(), _up = new Vector3(), _w = new Vector3();
 const _e = new Euler();
 
@@ -35,7 +35,12 @@ export function create(G, { input } = {}) {
   const key = new DirectionalLight(new Color().copy(G.sun.color), G.sun.intensity * 0.55);
   const fill = new DirectionalLight(new Color(0.55, 0.65, 0.85), 0.55);
   fill.position.set(-0.6, 0.5, 0.8);
-  scene.add(hemi, key, key.target, fill, fill.target);
+  // warm rim from the low sun behind the subject: the sun direction pushed further back and out to the silhouette's
+  // side, so grazing faces and edges catch a thin warm line; plus a soft front bounce that lifts the shadow side
+  const rim = new DirectionalLight(new Color(1.0, 0.72, 0.46), G.sun.intensity * 0.32);
+  const bounce = new DirectionalLight(new Color(0.78, 0.7, 0.6), 0.75);
+  bounce.position.set(0.25, -0.15, 1);
+  scene.add(hemi, key, key.target, fill, fill.target, rim, rim.target, bounce, bounce.target);
   scene.environmentIntensity = (G.ART?.ambient?.envIntensity ?? 1.25) * 1.0;
 
   const sway = new Spring(110, 15), swayY = new Spring(110, 15), roll = new Spring(300, 20);
@@ -44,7 +49,7 @@ export function create(G, { input } = {}) {
   let lastYaw = 0, lastPitch = 0, wasFiring = false, phase = 0, first = true;
   const B = {
     overlay: { scene, camera }, model, firing: false, power: 0, heat: 0, overheated: false, turbo: false,
-    origin: new Vector3(), dir: new Vector3(0, 0, -1), range: RANGE, forceFire: !!G.params.get('shot'), enabled: true,
+    origin: new Vector3(), dir: new Vector3(0, 0, -1), range: RANGE, forceFire: !!G.params.get('shot'), enabled: true, hero: false,
     enginePos: new Vector3(), visDir: new Vector3(0, 0, -1), tris: M.tris, calls: M.calls,
   };
   const air = createAirflow(G, B);
@@ -85,6 +90,8 @@ export function create(G, { input } = {}) {
     _qi.copy(_q).invert();
     _fwd.set(0, 0, -1).applyQuaternion(_q); _right.set(1, 0, 0).applyQuaternion(_q); _up.set(0, 1, 0).applyQuaternion(_q);
     key.position.copy(G.sun.dir).applyQuaternion(_qi).multiplyScalar(5);
+    // rim: behind the model (view -Z), raised, on the sun's side of the screen
+    rim.position.set(Math.sign(key.position.x || 1) * 0.55 + key.position.x * 0.1, 0.45, -1).normalize();
     _e.setFromQuaternion(_qi); scene.environmentRotation.copy(_e);
     hemi.position.set(0, 1, 0).applyQuaternion(_qi);
 
@@ -100,8 +107,10 @@ export function create(G, { input } = {}) {
     const spd = vel ? Math.min(1.2, Math.hypot(vel.x, vel.z) / PLAYER.walk) : 0;
     phase += dt * (6.5 + spd * 3) * (spd > 0.05 ? 1 : 0);
     bob.target = spd * 0.012 * Math.abs(Math.sin(phase));
-    const idle = B.power > 0.05 ? 1 : 0.25, amp = (0.0007 + B.power * 0.0016 + (B.turbo ? 0.001 : 0)) * idle;
-    buzz.target = (Math.random() - 0.5) * amp; buzzR.target = (Math.random() - 0.5) * amp * 3;
+    // two-stroke shake: smooth incommensurate sines (no per-frame white noise, so edges never crawl at idle)
+    const amp = B.hero ? 0 : B.power * (0.0009 + (B.turbo ? 0.0006 : 0));
+    const tt = G.t || 0;
+    buzz.target = amp * (Math.sin(tt * 61.3) * 0.6 + Math.sin(tt * 37.9 + 1.3) * 0.4); buzzR.target = amp * 3 * Math.sin(tt * 47.1 + 0.7);
     turboS.target = B.turbo ? 1 : 0; lower.target = B.enabled ? (B.overheated ? 0.35 : 0) : 1;
     sway.update(dt); swayY.update(dt); roll.update(dt); kick.update(dt); buzz.update(dt); buzzR.update(dt); bob.update(dt); turboS.update(dt); lower.update(dt);
     const tz = turboS.x, lw = lower.x, spool = B.power;
@@ -123,4 +132,9 @@ export function create(G, { input } = {}) {
   return B;
 }
 
-export function showcase() { return { cam: [-4, 1.68, -6], target: [-40, 4, -16] }; }
+// hero still: the sun off to the left of frame (backlit, not blowing out the middle distance), the DO NOT FEED sign
+// whole and readable left of centre, the blower in the lower right. The hero flag holds the two-stroke shake still.
+export function showcase(G) {
+  const B = G && G.mods && G.mods.blower; if (B) { B.hero = true; B.forceFire = false; }   // engine idling: no jet puffs boiling the puddles
+  return { cam: [-3.5, 1.68, -5.0], target: [-10.5, 2.2, -25] };
+}
