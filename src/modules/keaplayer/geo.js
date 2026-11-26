@@ -2,7 +2,7 @@
 // metres at ~1.6x life size so the beak reads at the bottom of the frame).
 //   buildBeak()     → { upper, lower, hinge, jaw, tip }   upper mandible + cere (origin at the culmen hinge), lower
 //                     mandible + tongue (origin at the jaw hinge); tip = the hook point in upper-mandible space
-//   buildFeathers() → one geometry: face mound (aSide 0) + right wing (aSide +1) + left wing (aSide -1), v1 kea atlas UVs;
+//   buildFeathers() → one geometry: face mound (closed ellipsoid, aSide 0) + right wing (aSide +1) + left wing (aSide -1), v1 kea atlas UVs;
 //                     aUnder = 1 on the underwing (orange flash); wings in shoulder space (span +x / -x, chord +z)
 //   buildParts()    → { wiper, seal, mirror, strap, cone } hanging from the beak grip (origin) along -Y, vertex colours
 import { BufferGeometry, Float32BufferAttribute, Vector3, Color } from 'three';
@@ -103,62 +103,87 @@ function sample(pts, v) {
   const n = pts.length - 1, f = Math.min(n, v * n), i = Math.min(n - 1, Math.floor(f)), k = f - i, a = pts[i], b = pts[i + 1];
   return [mix(a[0], b[0], k), mix(a[1], b[1], k), mix(a[2], b[2], k)];
 }
+// Kea beak, seen from the kea's right eye (which sits behind, above and to the side of the beak base): the deep, laterally
+// compressed upper mandible leaves the bottom edge of the frame left of centre, its culmen ridge running forward and a
+// little up the screen, then the long hook curving down and away toward the ground ahead. The short lower mandible
+// tucks under the hook and only shows (with the dark mouth) when the jaw drops.
+// Mutable so the dev hook (view.rebuild) can retune it live; the face mound is built relative to the hinge.
 export const BEAK = {
-  hinge: [-0.032, -0.032, -0.056],   // culmen base in head space (upper mandible pivot), lower left of the frame
-  L: 0.072, a0: 0.32, a1: -2.85, pw: 2.5, w0: 0.0062, h0: 0.027,
+  hinge: [-0.055, -0.006, -0.072],  // culmen base (upper mandible pivot) in head space: left of and level with the eye
+  L: 0.085, a0: 0.2, a1: -2.0, pw: 2.4, w0: 0.011, h0: 0.03, hp: 1.6, wn: 0.32, wp: 0.5,   // upper: arc length, culmen
+  //   angle base → tip (rad, + = up), curvature bias, base half-width, base depth, depth taper, width pinch
+  lL: 0.042, la0: -0.08, la1: 0.55, lw: 0.0095, lh: 0.013,                                   // lower mandible
+  cb: -0.007, cf: 0.006, ch: 0.45,                     // cere: back / front edge along the base, depth (× h0)
 };
-// upper-mandible section at (t, theta): x half-width, d depth below the culmen
+// upper-mandible section at (t base→tip, th around: 0 = culmen, π = cutting edge): x half-width, d depth below the culmen
 function upperSection(t, th) {
-  const w = BEAK.w0 * Math.pow(1 - t, 0.5) * (1 + 0.12 * (1 - sstep(0, 0.2, t))) + 0.0005, h = BEAK.h0 * Math.pow(1 - t, 0.75) + 0.0009;
+  const B = BEAK;
+  // broad at the base (the gape), quickly pinched to a narrow blade, the hook a thin point
+  const w = (B.wn + (1 - B.wn) * (1 - sstep(0, B.wp, t))) * B.w0 * (1 - 0.75 * sstep(0.7, 1, t)) + 0.0004;
+  // deep and nearly constant over the proximal half (a straight cutting edge), then closing fast into the hook point
+  const h = B.h0 * (1 - Math.pow(t, B.hp)) * (1 - 0.2 * t) + 0.0008;
   const cs = Math.cos(th), sn = Math.sin(th);
-  const x = w * Math.sign(sn) * Math.pow(Math.abs(sn), 0.75) * (1 - 0.3 * Math.max(0, -cs));
-  // a crisp culmen ridge (slight keel on top), sides flat, the cutting edge a thin blade
-  const d = h * (1 - cs) / 2 - 0.0009 * Math.max(0, cs) ** 6 * (1 - t);
+  // flanks flare a touch toward the cutting edge; a rounded culmen; a flat palate underneath
+  const x = w * Math.sign(sn) * Math.pow(Math.abs(sn), 0.6) * (0.72 + 0.28 * (1 - cs) / 2);
+  const d = h * Math.min(1, (1 - cs) / 2 * 1.12);
   return [x, d];
 }
 export function buildBeak() {
   const B = BEAK, up = new Acc(), lo = new Acc();
-  const C = centreline(B.L, B.a0, B.a1, B.pw, 48);
+  const C = centreline(B.L, B.a0, B.a1, B.pw, 56);
   // upper mandible (origin = hinge)
-  up.grid(30, 48, (u, v, o) => {
-    const [y, z, a] = sample(C, v), th = u * TAU, [x, d] = upperSection(v, th);
-    // section hangs below the culmen along -U, U = (cos a, sin a) in (y,z)
+  // the mesh starts 1 cm behind the hinge, tapering, so the base stays buried in the face feathers whatever the
+  // peck / squawk pivot does (no open tube end can surface)
+  const TB = 0.12, tv = (v) => mix(-TB, 1, v);
+  up.grid(32, 62, (u, v, o) => {
+    const t = tv(v), tc = Math.max(0, t), [y0, z0, a] = sample(C, tc), th = u * TAU;
+    let [x, d] = upperSection(tc, th);
+    let y = y0, z = z0;
+    if (t < 0) { const k = 1 - 0.45 * (t / -TB); x *= k; d *= k; y += Math.sin(a) * t * B.L; z += -Math.cos(a) * t * B.L; }
     o.set(x, y - Math.cos(a) * d, z - Math.sin(a) * d);
-  }, (u, v) => buv(BR.upper, u, v), (u, v) => {
+  }, (u, v) => buv(BR.upper, u, Math.max(0, tv(v))), (u, v) => {
+    v = Math.max(0, tv(v));
     const cs = Math.cos(u * TAU);
-    return (0.62 + 0.38 * sstep(-0.6, 0.7, cs)) * (0.82 + 0.18 * sstep(0, 0.15, v));
+    return (0.6 + 0.4 * sstep(-0.7, 0.6, cs)) * (0.75 + 0.25 * sstep(0, 0.2, v));
   }, { wrapU: true });
-  // cere: a fleshy grey saddle over the base, merging into the keratin at its front edge
-  up.grid(30, 8, (u, v, o) => {
+  // cere: a fleshy grey saddle over the top of the base, nostrils either side of the ridge, sunk into the face feathers
+  up.grid(30, 10, (u, v, o) => {
     const th = u * TAU, cs = Math.cos(th), sn = Math.sin(th);
-    const along = mix(-0.016, 0.008, v);                       // metres along the initial direction (− = behind)
-    const swell = 1.06 - 0.06 * sstep(0.55, 1, v);
-    const w = B.w0 * 1.06 * swell, h = B.h0 * 1.01;
-    const x = w * Math.sign(sn) * Math.pow(Math.abs(sn), 0.7) * (1 - 0.25 * Math.max(0, -cs));
-    const d = h * (1 - cs) / 2 - 0.0016 * swell * Math.max(0, cs) - 0.001 * (swell - 1) * 6;
+    const along = mix(B.cb, B.cf, v);                       // metres along the initial direction (− = behind)
+    const swell = (1 + 0.06 * Math.sin(Math.PI * sstep(0, 1, v)) - 0.05 * sstep(0.75, 1, v)) * (0.8 + 0.2 * sstep(0, 0.35, v));   // back edge sinks into the keratin
+    const w = B.w0 * 1.03 * swell, h = B.h0 * B.ch * swell;
+    const x = w * Math.sign(sn) * Math.pow(Math.abs(sn), 0.85) * (1 - 0.45 * Math.max(0, -cs));
+    const d = h * (1 - cs) / 2 - 0.0022 * swell * Math.max(0, cs) + 0.0008;
     const a = B.a0;
     o.set(x, Math.sin(a) * along - Math.cos(a) * d, -Math.cos(a) * along - Math.sin(a) * d);
-  }, (u, v) => buv(BR.cere, u, v), (u, v) => 0.7 + 0.3 * sstep(-0.4, 0.8, Math.cos(u * TAU)), { wrapU: true });
+  }, (u, v) => buv(BR.cere, u, v), (u, v) => 0.62 + 0.38 * sstep(-0.4, 0.8, Math.cos(u * TAU)) * sstep(0, 0.4, v), { wrapU: true });
   const tipS = C[C.length - 1];
   const tip = new Vector3(0, tipS[0], tipS[1]);
   const upper = up.build();
 
-  // lower mandible (origin = jaw hinge, under the upper's cutting edge): a deep trough, cutting edge on top
-  const Lc = centreline(0.05, 0.2, -0.75, 1.6, 20), lw = 0.0068, lh = 0.013;
-  lo.grid(24, 20, (u, v, o) => {
+  // lower mandible (origin = jaw hinge, tucked under the upper's base): deep at the gape, a short chisel tip that curves
+  // up into the hook; cutting edge on top
+  const Lc = centreline(B.lL, B.la0, B.la1, 1.4, 24);
+  lo.grid(24, 24, (u, v, o) => {
     const [y, z, a] = sample(Lc, v), th = u * TAU, cs = Math.cos(th), sn = Math.sin(th);
-    const w = lw * Math.pow(1 - v, 0.45) + 0.0006, h = lh * Math.pow(1 - v, 0.6) + 0.0008;
-    const x = w * Math.sign(sn) * Math.pow(Math.abs(sn), 0.8);
+    const w = B.lw * (0.45 + 0.55 * Math.pow(1 - v, 0.7)) * (1 - 0.6 * sstep(0.8, 1, v)) + 0.0006;
+    const h = B.lh * Math.pow(1 - v, 0.65) + 0.0012;
+    const x = w * Math.sign(sn) * Math.pow(Math.abs(sn), 0.7);
     const d = h * (1 - cs) / 2;                                 // cs = 1: cutting edge (top), hangs below
     o.set(x, y - Math.cos(a) * d, z - Math.sin(a) * d);
-  }, (u, v) => buv(BR.lower, u, v), (u, v) => 0.6 + 0.4 * sstep(-0.5, 0.8, Math.cos(u * TAU)), { wrapU: true });
+  }, (u, v) => buv(BR.lower, u, v), (u, v) => 0.55 + 0.45 * sstep(-0.5, 0.8, Math.cos(u * TAU)), { wrapU: true });
   // tongue: dark, blunt, set back in the trough
   lo.grid(16, 10, (u, v, o) => {
     const th = u * TAU, ph = v * Math.PI;
-    o.set(0.0052 * Math.sin(ph) * Math.sin(th), -0.0015 + 0.0034 * Math.sin(ph) * Math.cos(th), -0.012 - 0.0085 * Math.cos(ph));
+    o.set(0.0058 * Math.sin(ph) * Math.sin(th), 0.0005 + 0.0036 * Math.sin(ph) * Math.cos(th), -0.016 - 0.01 * Math.cos(ph));
   }, (u, v) => buv(BR.mouth, u, v), () => 0.9, { wrapU: true, flip: true });
+  // mouth lining: a dark membrane across the gape behind the tongue, so an open beak reads as a mouth, not two sticks
+  for (const flip of [true, false]) lo.grid(8, 6, (u, v, o) => {
+    const x = (u * 2 - 1) * B.lw * 0.95, k = v;
+    o.set(x, mix(0.0, B.h0 * 0.8, k) * (1 - 0.3 * (u * 2 - 1) ** 2), mix(-0.002, 0.004, k));
+  }, (u, v) => buv(BR.mouth, u, v), () => 0.6, { flip });
   const lower = lo.build();
-  return { upper, lower, tip, hinge: new Vector3().fromArray(B.hinge), jaw: new Vector3(0, -B.h0 * 0.92, 0.006) };
+  return { upper, lower, tip, hinge: new Vector3().fromArray(B.hinge), jaw: new Vector3(0, -B.h0 * 0.86, 0.006) };
 }
 
 // ------------------------------------------------------------------------------------------- feathers
@@ -202,28 +227,35 @@ function wing(acc) {
     }
   }
 }
-export const FACE = { c: [-0.042, -0.046, -0.046], r: [0.03, 0.022, 0.026] };
+// the kea's head ahead of the eye: a closed feathered ellipsoid (forehead, lores, cheek) the beak grows out of. Closed,
+// so whatever a peck, squawk raise, pull or tumble does to it there is never a cut edge — only a rounded mound of
+// olive-bronze, dark-edged feathers filling the lower corner of the frame.
+export const FACE = { c: [-0.07, -0.024, -0.061], r: [0.034, 0.027, 0.031], tint: [0.82, 0.76, 0.56] };
 function face(acc) {
-  // the forehead / lores mound the beak grows out of, seen from just above and behind: scalloped olive head plumage,
-  // darkest at the beak base (the atlas head region's dark face at t ≈ 0)
   const C = FACE.c, Rr = FACE.r, bz = BEAK.hinge;
+  // parametrise around the axis from the centre to the beak base: one pole hides under the cere, the other faces away
+  // behind and below the eye, so neither the grid pinch nor a texture seam is ever on screen; the feathers radiate
+  // from the beak (dark lores at t = 0) like the real thing
+  const A = new Vector3(bz[0] - C[0], (bz[1] - C[1]) * 0.9, bz[2] - C[2]).normalize();
+  const B1 = new Vector3().crossVectors(A, Math.abs(A.y) > 0.9 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0)).normalize();
+  const B2 = new Vector3().crossVectors(A, B1);
+  const dir = (u, v, o) => {
+    const th = mix(0.12, Math.PI, v), ph = u * TAU, st = Math.sin(th);
+    return o.copy(A).multiplyScalar(Math.cos(th)).addScaledVector(B1, st * Math.cos(ph)).addScaledVector(B2, st * Math.sin(ph));
+  };
+  const n = new Vector3();
   acc.S = 0; acc.U = 0;
-  acc.grid(40, 18, (u, v, o) => {
-    const ph = mix(-1.45, 1.45, u), ps = mix(-0.35, 1.45, v);
-    const cp = Math.cos(ps);
-    o.set(C[0] + Rr[0] * Math.sin(ph) * cp, C[1] + Rr[1] * Math.sin(ps), C[2] - Rr[2] * Math.cos(ph) * cp);
-    // feathers ruffle out a touch toward the cheeks; a soft ridge (brow) above each side
-    const brow = 0.003 * Math.exp(-((Math.abs(ph) - 0.75) ** 2) * 10) * sstep(0.2, 0.9, ps);
-    o.y += brow;
+  acc.grid(56, 30, (u, v, o) => {
+    dir(u, v, n);
+    const k = 1 + (0.03 * Math.sin(u * TAU * 11 + v * 9) * Math.sin(v * 17 + 1) + 0.015 * Math.sin(u * TAU * 29 + v * 31)) * sstep(0.05, 0.3, v);   // ruffled feather lumps
+    o.set(C[0] + Rr[0] * n.x * k, C[1] + Rr[1] * n.y * k, C[2] + Rr[2] * n.z * k);
   }, (u, v) => {
-    const ph = mix(-1.45, 1.45, u), ps = mix(-0.35, 1.45, v);
-    const d = Math.hypot(ph * 0.9, (ps - 0.55) * 1.2);             // angular distance from the beak base
-    return ruv(R.head, 0.5 + ph * 0.3, clamp(0.02 + d * 0.55, 0, 1));
+    return ruv(R.head, Math.abs(u * 2 - 1) * 0.28, clamp(v * 0.4, 0, 1));    // ~1 cm feathers (life size × 1.6)
   }, (u, v, P) => {
-    const ph = mix(-1.45, 1.45, u), ps = mix(-0.35, 1.45, v);
-    const dB = Math.hypot(P.x - bz[0], (P.y - bz[1]) * 1.3, P.z - bz[2]);
-    return (0.55 + 0.45 * sstep(0.008, 0.03, dB)) * (0.7 + 0.3 * sstep(-0.3, 0.6, ps)) * (0.85 + 0.15 * Math.cos(ph));
-  }, { flip: true });
+    const up = (P.y - C[1]) / Rr[1];
+    const ao = (0.45 + 0.55 * sstep(0.0, 0.25, v)) * (0.6 + 0.4 * sstep(-0.9, 0.4, up));
+    return [ao * FACE.tint[0], ao * FACE.tint[1], ao * FACE.tint[2]];     // pull the atlas olive toward bronze
+  }, { wrapU: true, flip: true });
 }
 export function buildFeathers() {
   const acc = new Acc();
@@ -278,7 +310,7 @@ export function buildParts() {
       const band = (v > 0.36 && v < 0.47) || (v > 0.6 && v < 0.7);
       const c = band ? WHITE : ORANGE, ao = 0.75 + 0.25 * Math.cos(u * TAU - 1.2) * 0.5 + 0.125;
       return [c[0] * ao, c[1] * ao, c[2] * ao];
-    }, { wrapU: true, flip: false });
+    }, { wrapU: true, flip: true });
     a.box(0, -H - 0.004, 0, 0.13, 0.008, 0.13, lin(0x161616));
     out.cone = a.build();
   }

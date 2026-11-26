@@ -1,7 +1,9 @@
 // keaplayer/view — the kea's own view model (the hero object of kea mode), drawn as the post pipeline's first-person
 // overlay (own Scene + PerspectiveCamera, depthRange 0..0.05, like the blower):
-//   * the beak at the bottom of frame: olive-slate upper mandible with its long hook, grey cere + nostrils, the lower
-//     mandible drops on a squawk and clamps / wiggles on a pull; a carried part hangs from the hook on a pendulum
+//   * the head and beak in three-quarter profile from the right eye: a feathered olive-bronze face mound in the lower
+//     left corner, the deep grey-brown upper mandible with its down-curved hook (paler worn tip), grey cere + nostrils;
+//     the short lower mandible drops (tongue, mouth) on a squawk / peck and clamps / wiggles on a pull; a carried part
+//     hangs from the hook on a pendulum
 //   * the wings' leading edges sweep in from the sides on every downstroke, the scarlet-orange underwing flashing
 //   * springs for look sway, hop bob, landing dip, flap heave; everything snaps to target under ?shot
 // Draw calls: beak upper (1) + lower (1) + feathers: face + both wings, one skinned-by-uniform mesh (1) + part (1) = 4.
@@ -11,21 +13,24 @@ import { Scene, PerspectiveCamera, Mesh, Group, Object3D, MeshStandardMaterial, 
 import { Spring } from '../../cookbook/engine/springs.js';
 import { patch, after } from '../../cookbook/engine/patch.js';
 import { KEA_PLAYER as K } from '../../contracts.js';
-import { buildBeak, buildFeathers, buildParts, BEAK } from './geo.js';
+import { buildBeak, buildFeathers, buildParts, BEAK, FACE } from './geo.js';
 import { bakeBeakTextures } from './tex.js';
 
-// rest pose of each carried part under the hook (Euler XYZ, metres in head space, scale)
+// rest pose of each carried part under the hook (Euler XYZ, metres in head space, scale): tipped forward and swung out
+// to the right of the hook so the beak (between it and the eye) never hides it and it stays below the crosshair
 const PART_POSE = {
-  wiper:  { x: 0.0, y: 0.0, z: 0.0, rx: 0.5, ry: 0.3, rz: 1.3, s: 0.8 },   // held crosswise, drooping to the right
-  seal:   { x: 0.0, y: 0.0, z: 0.0, rx: 0.9, ry: 0.0, rz: 0.5, s: 1.0 },
-  mirror: { x: 0.0, y: 0.0, z: 0.0, rx: 1.0, ry: 0.4, rz: 0.2, s: 1.0 },
-  strap:  { x: 0.0, y: 0.0, z: 0.0, rx: 0.9, ry: 0.0, rz: -0.5, s: 1.0 },
-  cone:   { x: 0.0, y: 0.0, z: 0.0, rx: 1.0, ry: 0.0, rz: -0.3, s: 0.35 },
+  wiper:  { x: 0.0, y: 0.0, z: 0.0, rx: 0.9, ry: 0.3, rz: 0.55, s: 0.8 },   // held by the clip, drooping down and right
+  seal:   { x: 0.0, y: 0.0, z: 0.0, rx: 1.0, ry: 0.0, rz: 0.7, s: 1.0 },
+  mirror: { x: 0.0, y: 0.0, z: 0.0, rx: 1.0, ry: 0.4, rz: 0.6, s: 1.0 },
+  strap:  { x: 0.0, y: 0.0, z: 0.0, rx: 1.0, ry: 0.0, rz: 0.6, s: 1.0 },
+  cone:   { x: 0.0, y: 0.0, z: 0.0, rx: 1.1, ry: 0.0, rz: 0.75, s: 0.35 },
 };
 const SHOULDER = [0.06, -0.066, 0.05];
-// the right eye's view: the beak sits a touch left of centre, turned in toward the crosshair and rolled so its right
-// flank and the hook's profile face the eye (a symmetric top view reads as a blob)
-const REST_B = { rx: 0.6, ry: -0.5, rz: 0.5 };
+// the right eye's view: a kea's eyes are on the sides of its head, level with the cere, so the beak is seen in
+// three-quarter profile from the left of the frame — base in the feathers at the left edge, culmen running in toward
+// the centre, the hook dropping away below the crosshair. Yawed in so its right flank faces the eye (a top-down view of
+// a beak reads as a horn or a thumb; the profile is what says "parrot")
+const REST_B = { rx: -0.05, ry: -0.8, rz: 0.05 };
 
 const _q = new Quaternion(), _qi = new Quaternion(), _e = new Euler(), _m = new Matrix4(), _m2 = new Matrix4(), _v = new Vector3(), _fwd = new Vector3();
 const _ex = new Euler(0, 0, 0, 'YZX');
@@ -39,7 +44,7 @@ export function createView(G, { atlas } = {}) {
   // ---- materials (lit like the blower's view model: hemi + sun in view space + rim + bounce)
   const bt = bakeBeakTextures(256);
   const beakMat = new MeshStandardMaterial({ map: bt.map, roughnessMap: bt.roughnessMap, normalMap: bt.normalMap, roughness: 1, metalness: 0, vertexColors: true });
-  beakMat.normalScale.set(0.5, 0.5); beakMat.name = 'keaplayer:beak';
+  beakMat.normalScale.set(0.35, 0.35); beakMat.envMapIntensity = 0.6; beakMat.name = 'keaplayer:beak';
   const at = atlas || {};
   const featherMat = new MeshStandardMaterial({ map: at.map || null, roughnessMap: at.roughnessMap || null, normalMap: at.normalMap || null, roughness: 1, metalness: 0, vertexColors: true });
   featherMat.normalScale.set(0.55, 0.55); featherMat.name = 'keaplayer:feathers';
@@ -69,7 +74,7 @@ export function createView(G, { atlas } = {}) {
   const lower = new Mesh(B.lower, beakMat); lower.name = 'kea:jaw';
   jaw.add(lower); upper.add(jaw);
   // the grip point sits in the hook; the part's swing rig hangs from it in HEAD space (so parts hang down the screen)
-  const gripLocal = new Vector3(B.tip.x, B.tip.y + 0.007, B.tip.z + 0.004);
+  const gripLocal = new Vector3(B.tip.x, B.tip.y + 0.008, B.tip.z + 0.003);
   const swing = new Object3D(); head.add(swing);
   const part = new Mesh(P.wiper, partMat); part.visible = false; part.name = 'kea:part'; swing.add(part);
   head.add(upper);
@@ -98,7 +103,16 @@ export function createView(G, { atlas } = {}) {
 
   const V = {
     overlay: { scene, camera }, calls: 4, head, upper, jaw, part, feathers, materials: [beakMat, featherMat, partMat],
-    pose: null,     // showcase/capture override: { phase, flap, fold, jaw, pull, squawk } (fixed, no time)
+    pose: null,     // showcase/capture override: { phase, flap, fold, jaw, pull, squawk, peck } (fixed, no time)
+    rest: REST_B,
+  };
+  // dev hook: retune the beak / face live (window.__G.mods.keaplayer.view.rebuild({ L: .1 }, { r: [...] }, { rz: .3 }))
+  V.rebuild = (bo, fo, ro) => {
+    if (bo) Object.assign(BEAK, bo); if (fo) Object.assign(FACE, fo); if (ro) Object.assign(REST_B, ro);
+    const nb = buildBeak(), nf = buildFeathers();
+    upper.geometry.dispose(); lower.geometry.dispose(); feathers.geometry.dispose();
+    upper.geometry = nb.upper; lower.geometry = nb.lower; feathers.geometry = nf;
+    upper.position.copy(nb.hinge); jaw.position.copy(nb.jaw); gripLocal.set(nb.tip.x, nb.tip.y + 0.008, nb.tip.z + 0.003);
   };
   V.setPart = (kind) => {
     partKind = kind && parts[kind] ? kind : null;
@@ -155,7 +169,7 @@ export function createView(G, { atlas } = {}) {
     // beak: squawk opens wide and lifts the upper mandible; a pull clamps and worries the part side to side
     const pulling = (po ? po.pull : S.pulling > 0 && S.pullActive) ? 1 : 0;
     const sq = po ? po.squawk || 0 : S.squawkOpen || 0;
-    const pk = po ? 0 : S.peck || 0;                               // a click: lunge forward, beak snaps open then shut
+    const pk = po ? po.peck || 0 : S.peck || 0;                               // a click: lunge forward, beak snaps open then shut
     jawS.target = Math.max(pk * 0.7, sq * 1.0, pulling ? 0.1 + 0.08 * Math.max(0, Math.sin(t * 9)) : 0, partKind ? 0.07 : 0, S.tumble > 0 ? 0.6 : 0, po && po.jaw || 0);
     raise.target = sq * 1 + (S.tumble > 0 ? 0.4 : 0);
     tug.target = pulling ? 0.5 + 0.5 * Math.sin(t * 7.3) : 0;
@@ -178,9 +192,12 @@ export function createView(G, { atlas } = {}) {
 
     // head rig
     const idle = SHOT ? 0 : 0.0006 * Math.sin(t * 1.7);
-    head.position.set(sway.x * 0.5 + idle, -swayY.x * 0.5 + bob.x + land.x * 0.02 + heave.x * -0.01 + pk * 0.012, tug.x * 0.006 - pk * 0.09);
-    head.rotation.set(-swayY.x * 0.6 - (pulling ? 0.1 : 0) - pk * 0.35 + raise.x * 0.1 - (partKind === 'cone' ? 0.05 : 0), sway.x * 0.8 + wig.x * 0.07, roll.x + wig.x * 0.03, 'YXZ');
-    upper.rotation.set(raise.x * 0.3 + REST_B.rx, REST_B.ry, REST_B.rz);
+    // a peck: the head stays anchored on the eye (the face mound never slides off its frame edge) and only nods and
+    // thrusts a little; the beak itself pivots down at the cere and stabs forward
+    head.position.set(sway.x * 0.5 + idle, -swayY.x * 0.5 + bob.x + land.x * 0.02 + heave.x * -0.01, tug.x * 0.006 - pk * 0.012);
+    head.rotation.set(-swayY.x * 0.6 - (pulling ? 0.06 : 0) - pk * 0.1 + raise.x * 0.08 - (partKind === 'cone' ? 0.04 : 0), sway.x * 0.8 + wig.x * 0.07, roll.x + wig.x * 0.03, 'YXZ');
+    upper.rotation.set(raise.x * 0.22 - pk * 0.22 + REST_B.rx, REST_B.ry, REST_B.rz);
+    upper.position.z = BEAK.hinge[2] - pk * 0.014;
     upper.updateMatrix(); swing.position.copy(gripLocal).applyMatrix4(upper.matrix);
     jaw.rotation.x = -jawS.x * 0.55;
     swing.rotation.set(swX.x, 0, swZ.x);

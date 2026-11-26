@@ -388,7 +388,7 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
 }
 
 // ---------------------------------------------------------------- showcase
-// ?show=keaplayer[&kpose=flap|pull|squawk|carry|glide]: enables the kea and swaps the post pipeline's overlay to the
+// ?show=keaplayer[&kpose=flap|pull|squawk|carry|glide|rest|peck]: enables the kea and swaps the post pipeline's overlay to the
 // kea view model (showcase only; in the game the lead's mode switch does this), then frames a hero still.
 const POSES = {
   // [feet x,y,z], yaw, pitch, view pose
@@ -396,6 +396,8 @@ const POSES = {
   glide:  { at: [20.0, 6.0, -4.0], look: [-20, 2.0, -8.0], pose: { phase: 0, flap: 0, fold: 0 }, part: 'wiper' },
   pull:   { at: [11.85, 1.21, 0.95], look: [11.83, 1.32, 1.6], pose: { phase: 0, flap: 0, fold: 1, pull: 1, jaw: 0.12 } },
   squawk: { at: [30.2, 1.2, -19.6], look: [29.0, 0.4, -17.5], pose: { phase: 0, flap: 0, fold: 1, squawk: 1 } },
+  rest:   { at: [20.0, 0.0, -4.0], look: [-20, 0.5, -8.0], pose: { phase: 0, flap: 0, fold: 1 } },
+  peck:   { at: [20.0, 0.0, -4.0], look: [-20, 0.5, -8.0], pose: { phase: 0, flap: 0, fold: 1, peck: 1, jaw: 0.7 } },
   carry:  { at: [6.0, 6.6, 6.0], look: [-6.0, 2.0, 2.0], pose: { phase: 0.6, flap: 1, fold: 0 }, part: 'cone' },
 };
 export function showcase(G, pose) {
