@@ -75,6 +75,13 @@ export function buildRoof(k, T, cfg) {
   T(k.box(0.7, 0.1, 0.5, 'paint', { at: [0, top + 0.09, 0.6], r: 0.045, color: 0xbfc0bc }), 0.4);
   T(k.box(0.7, 0.04, 0.5, 'paint', { at: [0, top + 0.27, 0.83], rot: [-0.95, 0.12, 0], r: 0.02, color: 0xbfc0bc }), -0.4);
   T(k.box(0.68, 0.012, 0.48, 'dark', { at: [0, top + 0.062, 0.6], color: 0x0c0c0c }), -0.4);
+  // the hatch's rubber seal (perch 2: a kea pulls it and the lid comes with it, rule 0.4 like the lid)
+  for (const s of [-1, 1]) {
+    T(k.box(0.75, 0.026, 0.03, 'dark', { at: [0, top + 0.066, 0.6 + s * 0.262], r: 0.008, color: 0x0e0e0e }), 0.4);
+    T(k.box(0.03, 0.026, 0.5, 'dark', { at: [s * 0.362, top + 0.066, 0.6], r: 0.008, color: 0x0e0e0e }), 0.4);
+  }
+  // luton roof-seam sealant strip (perch 4; torn with the windscreen top seal, rule 0.6)
+  T(k.box(2.0, 0.014, 0.06, 'dark', { at: [0, top + 0.004, -1.65], r: 0.005, color: 0x151515 }), 0.6);
   k.box(0.42, 0.1, 0.42, 'dark', { at: [0.45, top + 0.05, -0.9], r: 0.03, color: dark });                    // vent
   k.box(0.46, 0.03, 0.46, 'dark', { at: [0.45, top + 0.11, -0.9], r: 0.01, color: 0x202020 });
   k.cyl(0.05, 0.12, 'dark', { at: [-0.7, top + 0.06, 2.2], seg: 14, color: dark });                         // fridge flue
@@ -84,12 +91,24 @@ export function buildRoof(k, T, cfg) {
     for (const z of [-1.5, 0.3, 2.0, 3.0]) k.box(0.05, 0.1, 0.07, 'dark', { at: [s * 0.88, top + 0.05, z], r: 0.015, color: dark });
   }
   for (const z of [-1.2, -0.3, 1.2]) k.box(1.82, 0.03, 0.05, 'metal', { at: [0, top + 0.125, z], r: 0.01, color: 0x3a3c3e }); // cross bars
+  // two ratchet tie-down straps rail to rail (perch 3, rule 0.013: only a player kea takes them). Flat on the roof,
+  // looped round both rails; on the kayak van they hold the kayak down instead.
+  const strapC = cfg.gear === 'kayak' ? 0x2f6ac8 : 0xe0a020;
+  for (const z of [1.3, 1.5]) {
+    const pts = cfg.gear === 'kayak'
+      ? [[-0.88, top + 0.1], [-0.2, top + 0.28], [0.06, top + 0.47], [0.25, top + 0.555], [0.44, top + 0.47], [0.62, top + 0.3], [0.88, top + 0.1]]
+      : [[-0.88, top + 0.1], [-0.76, top + 0.009], [0.76, top + 0.009], [0.88, top + 0.1]];
+    for (let i = 0; i + 1 < pts.length; i++) T(k.bar([pts[i][0], pts[i][1], z], [pts[i + 1][0], pts[i + 1][1], z], 0.05, 0.008, 'cab', { r: 0.002, color: strapC }), 0.013);
+    const bx = cfg.gear === 'kayak' ? 0.53 : 0.5, by = cfg.gear === 'kayak' ? top + 0.39 : top + 0.026, ba = cfg.gear === 'kayak' ? -0.75 : 0;
+    T(k.box(0.11, 0.03, 0.064, 'dark', { at: [bx, by, z], rot: [0, 0, ba], r: 0.008, color: 0x34363a }), 0.013);    // ratchet buckle
+    T(k.box(0.05, 0.012, 0.05, 'dark', { at: [bx - 0.02 * Math.cos(ba), by + 0.02, z], rot: [0, 0, ba], r: 0.004, color: 0x9a1c14 }), 0.013); // its red lever
+  }
   if (cfg.gear === 'pod') {                                                                                       // cargo pod, strapped
     k.box(0.9, 0.36, 1.5, 'paint', { at: [-0.25, top + 0.33, -0.75], r: 0.16, color: 0x2a2c2e, seg: 3 });
     for (const z of [-1.2, -0.3]) k.box(0.94, 0.012, 0.04, 'dark', { at: [-0.25, top + 0.515, z], r: 0.004, color: 0xd8571c });
   } else if (cfg.gear === 'kayak') {                                                                              // a kayak, optimistic
     k.add(lathe([[0, -1.6], [0.12, -1.2], [0.2, -0.4], [0.21, 0.3], [0.16, 1.1], [0.0, 1.6]], { seg: 14 }), 'paint', { at: [0.25, top + 0.36, 0.4], rot: [Math.PI / 2, 0, 0], color: 0xd8571c });
-    for (const z of [-0.4, 1.2]) k.box(0.36, 0.012, 0.04, 'dark', { at: [0.25, top + 0.575, z], r: 0.004, color: 0x141414 });
+    k.box(0.36, 0.012, 0.04, 'dark', { at: [0.25, top + 0.575, -0.4], r: 0.004, color: 0x141414 });
   } else if (cfg.gear === 'bags') {                                                                               // duffels in a net
     k.box(0.5, 0.26, 0.8, 'cab', { at: [-0.3, top + 0.28, -0.4], r: 0.11, color: 0x3a5a3a, seg: 3 });
     k.box(0.44, 0.22, 0.6, 'cab', { at: [0.3, top + 0.26, -0.25], r: 0.1, color: 0x7a2f2a, seg: 3 });

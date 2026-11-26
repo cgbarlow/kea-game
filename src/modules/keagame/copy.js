@@ -32,6 +32,8 @@ export const KEA_COPY = {
   quota: 'Quota of 9 recorded. The Department notes there is no quota. The Department also notes the cone.',
   quotaNoCone: 'Nine items held for research. The road cone remains at the gate. The Department is relieved, provisionally.',
   coneReturned: 'The road cone has been returned to the gate. The paperwork took longer than the walk.',
+  partDropped: 'Item dropped in transit. It is now litter. The Department has a policy on litter.',
+  partRecovered: 'Item recovered from the ground. The Department notes the kea has tidied up, technically.',
   coneDropped: 'Road cone dropped in transit. Its location has been noted. Recovery has been scheduled for after the shift.',
   offended: [
     (n) => `Kea offended (${n}). Offence has been logged.`,

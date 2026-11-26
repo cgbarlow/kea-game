@@ -19,7 +19,8 @@
 // URL: ?shift=<s> (20..3600, aftershocks compress like v1). ?shot freezes the rules. Capture previews (kea mode):
 //   ?stash=<0..12> parts on the pile, ?cone=gate|carried|banked.
 // Allocation-free update: strings only on events, loops indexed.
-import { Vector3 } from 'three';
+import { Vector3, Mesh, MeshStandardMaterial, ConeGeometry, Color } from 'three';
+import { buildParts } from '../keaplayer/geo.js';
 import { RULES } from '../game/index.js';
 import { LAYOUT as L } from '../../contracts.js';
 import { buildProps, KINDS } from './props.js';
@@ -49,6 +50,7 @@ export function create(G, { player, ranger, vans, possums, kea, terrain } = {}) 
     tumbles: 0, pulls: 0, squawks: 0, aftershocks: 0, possumLocks: 0, served: 0, quota: K.quota, coneStatus: 'gate' };
   const S = { state: 'idle', enabled: false, timeLeft: SHIFT, shiftLength: SHIFT, banked: 0, quota: K.quota, cone: 'gate', notices: 0,
     phase: 'calm', alertT: 0, magnitude: 0, nextShock: shockAt[0], carryKind: '', reason: '', stats, rules: K, shockAt,
+    loose: [], takeLoose: null,
     stash, ledge: props.ledge, coneAt, conePos: new Vector3(L.cone[0], L.cone[1], L.cone[2]), stashAt: stashP, group: props.group, materials: props.materials };
 
   let ready = false, started = false, shockIdx = 0, minuteIdx = 0, ln = 0;
@@ -92,7 +94,7 @@ export function create(G, { player, ranger, vans, possums, kea, terrain } = {}) 
     shockIdx = 0; minuteIdx = 0; started = false; keaT = 0; possT = 0; el = 0; lastOff = 0; coneLostT = 0;
     prevPull = 0; prevCarry = false; lastKind = ''; lastPullToast = -99; lastSquawkToast = -99;
     for (let i = 0; i < perchAt.length; i++) perchAt[i] = -99;
-    stash.reset(); clearLocks();
+    stash.reset(); clearLocks(); clearLoose();
     S.conePos.copy(coneAt); placeCone(coneAt.x, coneAt.y, coneAt.z, false);
     if (S.enabled) {
       vans?.reset?.(); kea?.reset?.(); possums?.reset?.(); ranger?.reset?.();
@@ -143,10 +145,12 @@ export function create(G, { player, ranger, vans, possums, kea, terrain } = {}) 
     if (G.t - lastPullToast > K.pullToastGap) { lastPullToast = G.t; toast(line(C.pullStart)); }
     void p; void van; void kind;
   });
-  G.on('kea:pull:done', (p, van, kind) => {
+  G.on('kea:pull:done', (p, van, kind, fromGround) => {
     if (!live()) return;
     const kd = kind || kindOf(player && player.carrying);
-    lastKind = kd; S.carryKind = kd; stats.pulls++;
+    lastKind = kd; S.carryKind = kd;
+    if (fromGround) { toast(C.partRecovered); return; }
+    stats.pulls++;
     if (kd === 'cone') { S.cone = 'carried'; stats.coneStatus = 'carried'; coneLostT = 0; syncVis(); }
     const t = C.pulled[kd]; if (t) toast(t);
     void p; void van;
@@ -157,12 +161,39 @@ export function create(G, { player, ranger, vans, possums, kea, terrain } = {}) 
     if (wasPulling || dropped || (player && (player.pulling > 0 || player.carrying)) || prevPull > 0 || prevCarry) notice();
     void p;
   });
-  // a part dropped mid-tumble is gone (the van keeps the damage); the cone lies where it fell until re-taken
+  // dropped mid-tumble: a part falls to the ground (S.loose) and can be picked up again; the cone lies where it fell
+  const LOOSE_MAX = 6, partGeo = buildParts();
+  const looseMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0 }); looseMat.name = 'keagame:loose';
+  // a black rubber strip vanishes on wet asphalt, so the Department marks each item with a small yellow evidence tent
+  const tagMat = new MeshStandardMaterial({ color: new Color(0.9, 0.62, 0.04), emissive: new Color(0.35, 0.22, 0.0), roughness: 0.5, metalness: 0 });
+  tagMat.name = 'keagame:tag';
+  const tagGeo = new ConeGeometry(0.07, 0.15, 3); tagGeo.translate(0, 0.075, 0);
+  if (S.materials) S.materials.push(looseMat, tagMat);
+  for (let i = 0; i < LOOSE_MAX; i++) {
+    const mesh = new Mesh(partGeo.wiper, looseMat); mesh.visible = false; mesh.castShadow = true; mesh.scale.set(9, 4, 9);  // thicker than life, reads at kea distance
+    mesh.rotation.order = 'YXZ'; mesh.name = 'keagame:loose'; props.group.add(mesh);
+    const tag = new Mesh(tagGeo, tagMat); tag.visible = false; tag.name = 'keagame:tag'; props.group.add(tag);
+    S.loose.push({ active: false, kind: '', van: null, pos: new Vector3(), mesh, tag, t: 0 });
+  }
+  function dropLoose(kind, van, p) {
+    let o = null;
+    for (let i = 0; i < S.loose.length; i++) if (!S.loose[i].active) { o = S.loose[i]; break; }
+    if (!o) { o = S.loose[0]; for (let i = 1; i < S.loose.length; i++) if (S.loose[i].t < o.t) o = S.loose[i]; }  // reuse the oldest
+    const x = p ? p.x : 0, z = p ? p.z : 0, y = groundAt(x, z);
+    o.active = true; o.kind = kind; o.van = van || null; o.t = G.t || 0; o.pos.set(x, y + 0.05, z);
+    const m = o.mesh; m.geometry = partGeo[kind] || partGeo.seal; m.visible = true;
+    const yaw = (x * 7.3 + z * 3.1) % (Math.PI * 2);
+    m.position.set(x, y + 0.004, z); m.rotation.set(-Math.PI / 2, yaw, 0);   // part-local +z (its thickness side) up, so it lies on the asphalt, not under it
+    o.tag.position.set(x + Math.cos(yaw) * 0.32, y, z - Math.sin(yaw) * 0.32); o.tag.rotation.set(0, yaw, 0); o.tag.visible = true;
+  }
+  S.takeLoose = (i) => { const o = S.loose[i]; if (!o || !o.active) return null; o.active = false; o.mesh.visible = false; o.tag.visible = false; return o; };
+  const clearLoose = () => { for (let i = 0; i < S.loose.length; i++) { S.loose[i].active = false; S.loose[i].mesh.visible = false; S.loose[i].tag.visible = false; } };
   G.on('kea:drop', (p, kind, van, pos) => {
     if (!live()) return;
     S.carryKind = '';
-    if (kind === 'cone' && S.cone === 'carried') dropCone(pos || (player && player.position));
-    void p; void van;
+    if (kind === 'cone') { if (S.cone === 'carried') dropCone(pos || (player && player.position)); }
+    else if (kind) { dropLoose(kind, van, pos || (player && player.position)); toast(C.partDropped); }
+    void p;
   });
   G.on('kea:squawk', () => {
     if (!live()) return;
@@ -258,7 +289,7 @@ export function create(G, { player, ranger, vans, possums, kea, terrain } = {}) 
         toast(off >= 3 ? C.offendedMax : line(C.offended)(off));
       }
       lastOff = off;
-      // carrying: track the kind; the cone falls back to the gate if dropped anywhere but the stash
+      // carrying: track the kind; a cone that leaves the beak anywhere but the stash is dropped where the kea is
       const c = player.carrying;
       if (c && !S.carryKind) S.carryKind = kindOf(c);
       if (!c) S.carryKind = '';

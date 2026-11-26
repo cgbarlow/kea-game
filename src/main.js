@@ -220,13 +220,15 @@ function installKeaMode(G, { game, blower, vans }) {
     blower.forceAt = (p, out) => (G.mode === 'kea' ? rg.forceAt(p, out) : f1(p, out));
   }
   // pulled parts leave the van (vans/fx.js uGone: the part's integrity rule is forced off)
-  const GONE = [0.3, 0.72, 0.4, 0, 0.6];   // van.perches order: mirror glass, kerb wiper blade, roof hatch lid, (strap), windscreen seal
+  // keaplayer part order: mirror glass, kerb wiper blade, roof hatch lid + seal, roof tie-down straps, luton seam +
+  // windscreen top seal, habitation door seal (rules written by vans/body.js + detail.js). 6 rules → uGone + uGone2.
+  const GONE = [0.3, 0.72, 0.4, 0.013, 0.6, 0.033], c = [0, 0, 0, 0, 0, 0, 0, 0];
   const syncGone = () => {
     for (const v of vans?.list || []) {
-      const u = v.uniforms && v.uniforms.uGone; if (!u) continue;
-      let n = 0; const c = [0, 0, 0, 0];
-      for (let i = 0; i < GONE.length && n < 4; i++) if (GONE[i] > 0 && G.mode === 'kea' && kp.isTaken(v, i)) c[n++] = GONE[i];
-      u.value.set(c[0], c[1], c[2], c[3]);
+      const u = v.uniforms && v.uniforms.uGone, u2 = v.uniforms && v.uniforms.uGone2; if (!u) continue;
+      let n = 0; c.fill(0);
+      for (let i = 0; i < GONE.length && n < 8; i++) if (G.mode === 'kea' && kp.isTaken(v, i)) c[n++] = GONE[i];
+      u.value.set(c[0], c[1], c[2], c[3]); if (u2) u2.value.set(c[4], c[5], c[6], c[7]);
     }
   };
   G.on('kea:pull:done', syncGone);
@@ -254,12 +256,12 @@ function installKeaMode(G, { game, blower, vans }) {
 }
 
 // KPOSES staging. Each entry: kea feet (the camera is the kea's eye, KPOSES[i] = eye + look target), view-model pose,
-// carried part, ranger stage, keagame preview. Applied only under ?shot (frozen rules) so the stills are repeatable.
+// carried part (or inBeak: shown mid-pull, not carried; pull: pinned progress; gone: [van, rule] hidden on the van), ranger stage, keagame preview. Applied only under ?shot (frozen rules) so the stills are repeatable.
 const KSTAGE = [
-  { pose: { phase: 0, flap: 0, fold: 1, pull: 1, jaw: 0.12 }, ranger: ['turn', { at: [-1.7, -2.4], lookAt: [-0.35, 2.1, 1.75], lag: 0.6, walk: 0.5 }] },
+  { pose: { phase: 0, flap: 0, fold: 1, pull: 1, jaw: 0.12 }, inBeak: 'mirror', pull: 0.62, gone: [1, 0.3], ranger: ['turn', { at: [-4.0, -0.2], lookAt: [-0.8, 1.65, 1.45], lag: 0.7, walk: 0.5 }] },
   { pose: { phase: 0, flap: 0, fold: 0 }, fly: true, ranger: ['walk', { at: [-4.0, -1.9], yaw: -1.5 }] },
   { pose: { phase: 0, flap: 0, fold: 1 }, ranger: ['walk', { at: [20.0, -8.0], yaw: -1.4 }] },
-  { pose: { phase: 0.6, flap: 1, fold: 0 }, part: 'cone', cone: 'carried', fly: true, ranger: ['blow', { at: [-3.0, -1.8], aimAt: [5.0, 6.0, 5.0] }] },
+  { pose: { phase: 0.3, flap: 1, fold: 0 }, part: 'cone', cone: 'carried', fly: true, holdOn: true, ranger: ['blow', { at: [0.8, 0.0], aimAt: [3.5, 5.0, 5.0], live: true, turbo: true }] },
   { pose: { phase: 0, flap: 0, fold: 1 }, stash: 9, cone: 'banked', ranger: ['walk', { at: [-5.0, -1.9], yaw: 0.5 }] },
   { pose: { phase: 0.15, flap: 0.6, fold: 0 }, fly: true, ranger: ['crouch', { at: [-7.6, -6.9], face: [-8, -8] }], shake: true },
 ];
@@ -273,8 +275,12 @@ function stageKShot(G, { kp, kg, rg }) {
   kp.teleport([P[0], P[1] - eye, P[2]], Math.atan2(-dx, -dz));
   if (st.fly) { kp.mode = 'fly'; kp.flying = true; kp.grounded = false; kp.perched = false; }
   kp.pitch = Math.atan2(dy, Math.hypot(dx, dz));
-  kp.hero = true; kp.view.pose = st.pose; kp.view.setPart(st.part || null);
+  kp.hero = true; kp.view.pose = st.pose; kp.view.setPart(st.part || st.inBeak || null);
   if (st.part) kp.carrying = { kind: st.part, van: null, mesh: kp.view.part };
+  // mid-pull still: the part already in the beak (its glass gone from the van), pull progress pinned so the ring shows
+  if (st.gone) { const v = G.mods.vans?.list?.[st.gone[0]]; if (v) v.uniforms.uGone.value.x = st.gone[1]; }
+  if (st.pull) G.on('update', () => { kp.pulling = st.pull; });
+  if (st.holdOn) kp.tuning.blowK = 0;   // the still: the jet does not knock the kea out of frame
   if (st.stash) for (let n = kg.banked; n < st.stash; n++) { kg.stash.add(['wiper', 'seal', 'mirror', 'strap'][n % 4]); kg.banked++; }
   if (st.cone && kg.cone !== st.cone) {
     kg.cone = st.cone; kg.stats.coneStatus = st.cone; if (st.cone === 'banked') kg.stash.add('cone');

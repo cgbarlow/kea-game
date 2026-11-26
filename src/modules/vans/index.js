@@ -1,11 +1,12 @@
 // vans — the three stranded rental campervans (the things you protect), their tourists and their camp-outs.
 //   create(G, { mats, colliders }) → { list: Van[], root, reset(), update, dispose }
-//   Van = { id, name, group, pos, yaw, integrity 0..1, perches: Vector3[] (0 mirror, 1 wiper, 2-4 roof), doorPos,
+//   Van = { id, name, group, pos, yaw, integrity 0..1, perches: Vector3[] (0 mirror, 1 wiper, 2 roof hatch seal, 3 roof tie-down straps, 4 luton roof seam seal), doorPos,
 //           damage(amount, kind), lastHit, lastKind, doorOpen, light }
 //   emits 'van:damage' (van, amount, kind). kind containing 'possum' opens the habitation door (a possum got in).
 //   Damage states are driven by integrity in the vertex shader (fx.js): wiper blades go (0.72 / 0.45), the windscreen
 //   seal tears (0.6), the roof-hatch lid is pried off (0.4), the kerb mirror glass goes (0.3), scratches spread
-//   (0.85 → 0.2); the hazard lights blink for 3 s after a hit and permanently under 0.25 (the van has given up).
+//   (0.85 → 0.2). Kea-only parts (never lost to integrity above ~0.03, only when a player kea pulls them, uGone):
+//   roof tie-down straps 0.013, habitation door seal 0.033. The hazard lights blink for 3 s after a hit and permanently under 0.25 (the van has given up).
 //   Per van: 7 kit/decal meshes + 1 lights.js dome bulb = 8 draw calls; ~25-30 k tris. Allocation-free update.
 //   showcase(G) → { cam, target }
 import { Group, DoubleSide, Vector3, Box3, Mesh, Matrix4, Euler, Quaternion, Float32BufferAttribute } from 'three';
@@ -82,7 +83,7 @@ export function create(G, { mats, colliders = [] }) {
     const hw = DIM.bodyW / 2, df = (DIM.door.f0 + DIM.door.f1) / 2;
     const van = {
       id: d.id, name: d.name, group: g, pos: new Vector3(d.x, 0, d.z), yaw: d.yaw, integrity: 1, lastHit: -99, lastKind: '', doorOpen: false, light,
-      perches: [local(-1.215, 1.885, -2.38), local(-0.3, 1.36, -2.6), local(-0.55, DIM.top + 0.01, -0.6), local(0.5, DIM.top + 0.01, 1.4), local(0.0, DIM.top + 0.01, -1.75)],
+      perches: [local(-1.215, 1.885, -2.38), local(-0.3, 1.36, -2.6), local(-0.55, DIM.top + 0.01, 0.6), local(0.5, DIM.top + 0.01, 1.4), local(0.0, DIM.top + 0.01, -1.75)],
       doorPos: local(-(hw + 0.4), 0, -df),
       uniforms: U, headYaw: 0, look: new Vector3(),
       damage(amount, kind = '') {
@@ -120,7 +121,7 @@ export function create(G, { mats, colliders = [] }) {
     }
   }
   G.on('update', update);
-  const reset = () => { for (const v of list) { v.integrity = 1; v.lastHit = -99; v.lastKind = ''; v.doorOpen = false; v.uniforms.uDoorA.value = 0; v.uniforms.uGone?.value.set(0, 0, 0, 0); } };
+  const reset = () => { for (const v of list) { v.integrity = 1; v.lastHit = -99; v.lastKind = ''; v.doorOpen = false; v.uniforms.uDoorA.value = 0; v.uniforms.uGone?.value.set(0, 0, 0, 0); v.uniforms.uGone2?.value.set(0, 0, 0, 0); } };
   return { list, root, reset, update, selfUpdating: true, dispose() { G.off?.('update', update); G.scene.remove(root); } };
 }
 

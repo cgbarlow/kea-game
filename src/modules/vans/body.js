@@ -152,6 +152,9 @@ export function buildBody(k, T, cfg) {
   T(k.add(extrudeBevel(dw, { depth: 0.01, bevel: 0.003 }), 'glass', { at: [-(hw + 0.04), 0, 0], rot: SIDE_ROT, color: 0x8a8a8a }), 0, 1);
   T(k.box(0.04, 0.05, 0.14, 'dark', { at: [-(hw + 0.05), 1.3, -(d.f0 + 0.08)], r: 0.015, color: black }), 0, 1);
   T(k.box(0.012, 1.72, 0.03, 'dark', { at: [-(hw + 0.038), (d.y0 + d.y1) / 2, -d.f0 - 0.01], r: 0.004, color: black }), 0, 1);
+  // the door's rubber seal on the body: a fat sill flap under it + both upright edges (kea part 5, rule 0.033: kea-only)
+  T(k.box(0.06, 0.045, d.f1 - d.f0 + 0.1, 'dark', { at: [-(hw + 0.03), d.y0 - 0.03, -(d.f0 + d.f1) / 2], r: 0.012, color: 0x121212 }), 0.033);
+  for (const f of [d.f0 - 0.03, d.f1 + 0.03]) T(k.box(0.024, d.y1 - d.y0 + 0.06, 0.03, 'dark', { at: [-(hw + 0.01), (d.y0 + d.y1) / 2, -f], r: 0.008, color: 0x121212 }), 0.033);
   k.box(0.32, 0.04, 0.58, 'metal', { at: [-(hw + 0.12), 0.42, -(d.f0 + d.f1) / 2], r: 0.012, color: 0x8e9092 });
   for (const s of [-1, 1]) k.box(0.04, 0.18, 0.04, 'dark', { at: [-(hw + 0.06), 0.5, -(d.f0 + d.f1) / 2 + s * 0.24], color: black });
   // lockers, gas locker, vents, filler caps (both sides vary)

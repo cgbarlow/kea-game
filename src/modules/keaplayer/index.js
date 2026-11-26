@@ -22,6 +22,7 @@ import { KEA_PLAYER as K, LAYOUT as L } from '../../contracts.js';
 import { createBody } from './body.js';
 import { createView } from './view.js';
 
+const PICKUP_TIME = 0.6;                                          // s: picking a dropped part back up
 const PECK = 0.3;                                                  // s: one peck (lunge out and back)
 const KINDS = ['mirror', 'wiper', 'seal', 'strap', 'seal', 'seal']; // van.perches order: 0 mirror, 1 wiper, 2-4 roof; 5 = habitation door seal (ground level, from van.doorPos)
 const H = 0.3, STEP = 0.2, GRAV = 14, TUMBLE_G = 11;
@@ -94,9 +95,17 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
       const d2 = _beak.distanceToSquared(_cone);
       if (d2 < best) { _v.subVectors(_cone, eye); const d = _v.length(); if (d <= 0.45 || _v.dot(_fwd) / d >= 0.5) { best = d2; bv = null; bi = -2; bk = 'cone'; } }
     }
+    // parts dropped in a tumble lie where they fell (keagame.loose) and can be picked up again: index -3 - k
+    const lo = kg && kg.enabled ? kg.loose : null;
+    if (lo) for (let k = 0; k < lo.length; k++) {
+      const o = lo[k]; if (!o.active) continue;
+      const d2 = _beak.distanceToSquared(o.pos); if (d2 >= best) continue;
+      _v.subVectors(o.pos, eye); const d = _v.length();
+      if (d <= 0.45 || _v.dot(_fwd) / d >= 0.5) { best = d2; bv = null; bi = -3 - k; bk = o.kind; }
+    }
     if (bi === -1) return null;
     target.van = bv; target.index = bi; target.kind = bk; target.dist = Math.sqrt(best);
-    if (bi >= 0) target.position.copy(partsOf(bv)[bi]); else target.position.copy(_cone);
+    if (bi >= 0) target.position.copy(partsOf(bv)[bi]); else if (bi === -2) target.position.copy(_cone); else target.position.copy(lo[-3 - bi].pos);
     return target;
   }
   let pv = null, pi = -1, pk = '', wantPrev = false;
@@ -121,17 +130,19 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
       G.emit('kea:pull:start', S, pv, pk);
     }
     const off = Math.min(S.offended, K.offendedMax);
-    S.pulling = Math.min(1, S.pulling + dt * (1 + 0.25 * off) / K.pullTime);
+    S.pulling = Math.min(1, S.pulling + dt * (1 + 0.25 * off) / (pi <= -3 ? PICKUP_TIME : K.pullTime));   // a dropped part is a quick pick-up
     if (pv) {   // the van takes v1-kea-like damage in tugs while the part is worried loose
       chunkAcc += S.tuning.pullDps * (1 + 0.55 * off) * dt; chunkT += dt * (1 + 0.25 * off);
       if (chunkT >= PULL_CHUNK) { chunkT -= PULL_CHUNK; pv.damage(chunkAcc, 'kea'); chunkAcc = 0; tugS.impulse(-1.2); }
     }
     if (S.pulling >= 1) {
       if (pv) { if (chunkAcc > 0) pv.damage(chunkAcc, 'kea'); pv.damage(S.tuning.detach, 'kea'); takenOf(pv)[pi] = 1; }
+      const ground = pi <= -3, kg = G.mods && G.mods.keagame;
+      if (ground && kg && kg.takeLoose) kg.takeLoose(-3 - pi);
       carry.kind = pk; carry.van = pv; S.carrying = carry; view.setPart(pk);
       S.pullActive = false; S.pulling = 0; S.pullTarget = null; chunkAcc = 0;
       const v = pv; pi = -1;
-      G.emit('kea:pull:done', S, v, pk);
+      G.emit('kea:pull:done', S, v, pk, ground);
     }
   }
   S.dropCarry = () => {

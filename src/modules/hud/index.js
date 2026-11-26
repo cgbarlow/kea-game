@@ -327,7 +327,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
     if (P && P.enabled) {
       const tg = P.pullTarget;
       if (P.carrying) hint = '';
-      else if (tg && !(P.pulling > 0)) hint = 'Hold left click: pull the ' + (PART_NAME[tg.kind] || tg.kind).toLowerCase();
+      else if (tg && !(P.pulling > 0)) hint = (tg.index <= -3 ? 'Hold left click: pick up the ' : 'Hold left click: pull the ') + (PART_NAME[tg.kind] || tg.kind).toLowerCase();
       else if (P.pullMiss > 0) hint = P.flying ? 'Land first. Kea cannot pull in flight.' : 'Nothing to pull here. Land on a campervan, or try a door seal.';
     }
     text(KN.hint, hint); flag(KN.hint, 'on', hint !== '');

@@ -423,7 +423,7 @@ export function create(G, { vans, colliders = [], possums } = {}) {
   };
 
   // ---------------------------------------------------------------- staging (captures, hero poses, showcase)
-  //   stage('blow', { at:[x,z], aimAt:[x,y,z] })    mid-blow, jet on
+  //   stage('blow', { at:[x,z], aimAt:[x,y,z], live, turbo })  mid-blow, jet on (live: the live-play jet look under ?shot)
   //   stage('turn', { at:[x,z], lookAt:[x,y,z], walk })  turning toward a sound (K1: behind the kea on the cab)
   //   stage('crouch', { at:[x,z], face:[x,z] })     drop, cover and hold (K6: by a picnic table), blower set down
   //   stage('walk', { at:[x,z], yaw, ph })          mid-stride patrol
@@ -431,8 +431,8 @@ export function create(G, { vans, colliders = [], possums } = {}) {
   //   stage(null) → back to the live AI
   const _t = new Vector3();
   R.stage = (kind, o = {}) => {
-    if (!kind) { R.frozen = false; R.target = null; wantFire = false; return; }
-    R.enabled = true; R.frozen = true; vel.set(0, 0, 0);
+    if (!kind) { R.frozen = false; R.target = null; wantFire = false; R.airLive = false; R.turbo = false; return; }
+    R.enabled = true; R.frozen = true; vel.set(0, 0, 0); R.airLive = !!o.live; R.turbo = !!o.turbo;
     if (o.at) R.position.set(o.at[0], 0, o.at[1]);
     P.walk = 0; P.aim = 0; P.cool = 0; P.crouch = 0; P.headYaw = 0; P.headPitch = -0.05; P.twist = 0; P.ph = o.ph ?? 0.6;
     wantFire = false; R.heat = 0.25; R.overheated = false; aimW = 0; aimCorr = 0; yawCorr = 0;

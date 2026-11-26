@@ -74,12 +74,12 @@ export const LAYOUT = {
 
 // v2 kea mode: hero poses (refine at integration; the critic judges these) and the #bench fly path (0.3-14 m).
 export const KPOSES = [   // camera = the kea's eye (feet + KEA_PLAYER.eye); main.js stages each one (?kshot=K1..K6 / ?mode=kea&shot&cam=KPOSES[i])
-  [-0.35, 2.43, 1.75, -0.9, 0.2, -2.2],    // K1 on van B's cab roof worrying the windscreen seal, the ranger below turning toward the noise
+  [-0.8, 1.65, 1.45, -6.0, 1.3, 2.95],     // K1 on van B's bonnet mid-pull: kerb mirror glass in the beak, pull ring on the housing, the ranger turning behind
   [20.0, 6.0, -4.0, -20.0, 3.0, -8.0],     // K2 gliding west down the car park into the sun, beak in frame
   [31.0, 1.56, -18.8, 29.0, 0.45, -17.4],  // K3 perched on the ROAD CLOSED gate's top rail, eyeing the cone below
-  [6.0, 7.0, 6.0, -6.0, 2.0, 2.0],         // K4 carrying the cone over the vans, the ranger blowing up at it
+  [3.5, 5.2, 5.0, -1.0, 0.5, 0.5],         // K4 carrying the cone over van B mid-wingbeat (both underwings), the ranger below blowing up at it
   [-4.4, 5.6, -33.0, -2.0, 1.5, -22.0],    // K5 the stash ledge from behind: pile + cone, the car park below
-  [-6.0, 1.2, -6.5, -8.0, 0.6, -8.0],      // K6 the ranger crouched by a picnic table in an aftershock as a kea lands
+  [-6.0, 1.2, -6.5, -8.32, 0.6, -7.43],    // K6 the ranger crouched by a picnic table in an aftershock as a kea lands
 ];
 export const KPATH = [
   [-4, 5.0, -30, 0, 2, 0],

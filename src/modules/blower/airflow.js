@@ -33,7 +33,7 @@ export function createAirflow(G, B) {
   G.scene.add(mesh);
   let next = 0, accS = 0, accG = 0, accW = 0, accW2 = 0;
   const SHOT = !!(G.params && G.params.get('shot'));
-  const LV = SHOT ? 0 : 1;                            // live-play visibility boost (0 under ?shot)
+  const LV0 = SHOT ? 0 : 1;                           // live-play visibility boost (0 under ?shot; B.airLive forces it: staged hero poses)
   let accH = 0;
   const far = (x, y, z) => { const o = B.origin, dx = x - o.x, dy = y - o.y, dz = z - o.z; return dx * dx + dy * dy + dz * dz >= NEAR2; };
 
@@ -50,7 +50,7 @@ export function createAirflow(G, B) {
   };
 
   function update(dt) {
-    const fx = G.mods.fx, pw = B.power, o = B.origin, d = B.jetDir || B.dir, vd = B.visDir, tb = B.turbo ? 1.35 : 1;
+    const fx = G.mods.fx, pw = B.power, o = B.origin, d = B.jetDir || B.dir, vd = B.visDir, tb = B.turbo ? 1.35 : 1, LV = B.airLive ? 1 : LV0;
     // ---- emit: streaks from the nozzle along the cone
     if (B.firing && pw > 0.2 && dt > 0) {
       accS += dt * (60 + 60 * LV) * pw * tb;
