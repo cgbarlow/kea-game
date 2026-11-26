@@ -28,7 +28,7 @@ export function create(G, { vans, blower } = {}) {
   const rnd = G.rng ? G.rng((G.params.get('seed') | 0) + 4411) : Math.random;
   const tex = bakeKeaTextures(512);
   const mat = new MeshStandardMaterial({ map: tex.map, roughnessMap: tex.roughnessMap, normalMap: tex.normalMap, roughness: 1, metalness: 0, vertexColors: true });
-  mat.normalScale.set(0.55, 0.55); mat.name = 'kea';
+  mat.normalScale.set(0.4, 0.4); mat.name = 'kea';
   // feathers are not weathered surfaces: no snow / beads on a bird, and world-space macro noise would swim on it
   mat.userData.weather = { wet: 0.15, dust: 0, snow: 0, beads: 0, macro: 0 };
   patchKea(mat);

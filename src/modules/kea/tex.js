@@ -26,12 +26,15 @@ const lerp3 = (o, a, b, t) => { o[0] = mix(a[0], b[0], t); o[1] = mix(a[1], b[1]
 
 // one scallop cell: returns [d edge 0..1 (1 = feather fringe), h height, shaft]. Rows offset half a cell; the
 // rounded tip of each feather points to +y (toward the tail / trailing edge).
+const hash1 = (n) => { const x = Math.sin(n * 12.9898 + 4.1) * 43758.5453; return x - Math.floor(x); };
 function scallop(x, y, out) {
   const row = Math.floor(y), fy = y - row;
-  const fx = x + (row & 1) * 0.5, col = Math.floor(fx), cx = fx - col - 0.5;
+  // rows offset half a cell plus a per-row jitter, so the plumage never reads as a regular fish-scale tiling
+  const fx = x + (row & 1) * 0.5 + (hash1(row) - 0.5) * 0.35, col = Math.floor(fx), cx = fx - col - 0.5;
+  const wob = (hash1(col * 3.7 + row * 11.1) - 0.5) * 0.12;
   // feather outline: a half-ellipse tip at fy≈1, overlapping the next row
-  const r = Math.sqrt(cx * cx * 2.2 + (fy - 0.25) * (fy - 0.25) * 1.3);
-  const edge = sstep(0.74, 0.9, r) * sstep(0.2, 0.55, fy);
+  const r = Math.sqrt(cx * cx * 2.2 + (fy - 0.25 + wob) * (fy - 0.25 + wob) * 1.3);
+  const edge = sstep(0.79, 0.86, r) * sstep(0.3, 0.6, fy);
   out[0] = edge; out[1] = 0.35 + fy * 0.55 - edge * 0.3 - sstep(0.85, 1.0, r) * 0.2;
   out[2] = Math.exp(-cx * cx * 900) * (1 - fy) * 0.6;
   out[3] = col * 7.13 + row * 3.71;   // per-feather id
@@ -49,26 +52,31 @@ export function bakeKeaTextures(N = 512) {
     const n1 = fbm2(u * 40, v * 40, 3, 11);
     if (inR(R.body, u, v)) {
       [s, t] = loc(R.body, u, v);
-      scallop(s * 24, t * 17, sc);
+      // feathers grow from small at the neck to broad mantle/rump feathers (non-uniform rows)
+      scallop(s * 20, 15 * (0.55 * t + 0.45 * t * t), sc);
       const id = vnoise2(sc[3], 1.7, 5);
-      lerp3(c, OLIVE, BRONZE, clamp(id * 1.1 + n1 * 0.4 - 0.2, 0, 1)); const lv = 0.85 + id * 0.3; c[0] *= lv; c[1] *= lv; c[2] *= lv;
+      lerp3(c, OLIVE, BRONZE, clamp(id * 1.1 + n1 * 0.4 - 0.2, 0, 1)); const lv = 0.82 + id * 0.32; c[0] *= lv; c[1] *= lv; c[2] *= lv;
       // breast/belly (s near 0.5 = underside) a touch browner and plainer
       const belly = 1 - Math.abs(s - 0.5) * 4; if (belly > 0) lerp3(c, c, [0.38, 0.36, 0.22], clamp(belly, 0, 1) * 0.5);
       // rump: orange-red band on the back near the tail (s≈0 / 1 is the back seam)
       const back = Math.min(s, 1 - s) * 4; const rump = sstep(0.72, 0.9, t) * (1 - sstep(0.3, 0.9, back));
       lerp3(c, c, SCARLET, rump * 0.85);
-      // feather base sits in the shade of the row above; dark fringe at the tip
-      lerp3(c, c, EDGE, sc[0] * (0.42 - rump * 0.2) + (1 - sc[1]) * 0.06);
+      // layering: the exposed tip of each feather is lit and bronze-glossed, its base sits in the shade of the row above;
+      // a crisp black margin rings every feather (the kea's signature scalloping)
+      const lit = sstep(0.45, 0.8, sc[1]);
+      lerp3(c, c, [0.42, 0.42, 0.2], lit * 0.22 * (1 - rump));
+      lerp3(c, c, EDGE, sc[0] * (0.8 - rump * 0.3) + (1 - sc[1]) * 0.05);
       c[0] += sc[2] * 0.05; c[1] += sc[2] * 0.05;
-      h = sc[1]; ro = 0.72 + sc[0] * 0.12;
+      h = sc[1]; ro = 0.6 + sc[0] * 0.25 - lit * 0.08 + n1 * 0.06;
     } else if (inR(R.wingTop, u, v)) {
       [s, t] = loc(R.wingTop, u, v);
       // coverts (scallops) on the leading ~45% of the chord near the body, shrinking toward the tip
       const covEnd = mix(0.5, 0.28, s);
       if (t < covEnd) {
-        scallop(s * 26, t * 13, sc);
+        scallop(s * 16, t * 9, sc);
         lerp3(c, OLIVE, BRONZE, clamp(vnoise2(sc[3], 4.1, 9) * 0.8 + n1 * 0.3, 0, 1));
-        lerp3(c, c, EDGE, sc[0] * 0.6 + (1 - sc[1]) * 0.1); h = sc[1]; ro = 0.74;
+        lerp3(c, c, [0.42, 0.42, 0.2], sstep(0.45, 0.8, sc[1]) * 0.2);
+        lerp3(c, c, EDGE, sc[0] * 0.8 + (1 - sc[1]) * 0.14); h = sc[1]; ro = 0.62 + sc[0] * 0.2;
       } else {
         // remiges: long feathers across the chord; primaries (s > .45) darker with teal-blue outer vanes
         const nf = s < 0.45 ? 10 : 9, fx = s * 2 * nf, fi = Math.floor(fx), ff = fx - fi;
@@ -89,9 +97,12 @@ export function bakeKeaTextures(N = 512) {
       [s, t] = loc(R.wingUnder, u, v);
       const covEnd = mix(0.55, 0.3, s);
       if (t < covEnd) {
-        scallop(s * 30, t * 14, sc);
-        lerp3(c, SCARLET, ORANGE, clamp(vnoise2(sc[3], 2.3, 3) * 0.15 + n1 * 0.3 + t * 0.9 - s * 0.2, 0, 1));
-        lerp3(c, c, [0.5, 0.2, 0.07], sc[0] * 0.07); h = 0.5 + sc[1] * 0.08; ro = 0.82;
+        // underwing coverts: deep scarlet at the body and leading edge grading to flame orange toward the hand,
+        // each covert with a paler tip and a dark red margin so the flash reads as layered feathers, not a flat band
+        scallop(s * 18, t * 9, sc);
+        lerp3(c, [0.62, 0.17, 0.07], ORANGE, clamp(vnoise2(sc[3], 2.3, 3) * 0.2 + n1 * 0.25 + t * 0.55 + s * 0.6 - 0.25, 0, 1));
+        lerp3(c, c, [0.9, 0.58, 0.22], sstep(0.5, 0.85, sc[1]) * 0.22);
+        lerp3(c, c, [0.32, 0.09, 0.04], sc[0] * 0.55 + (1 - sc[1]) * 0.15); h = 0.4 + sc[1] * 0.3; ro = 0.66 + sc[0] * 0.2 + n1 * 0.08;
       } else {
         const fx = s * 18, ff = fx - Math.floor(fx);
         lerp3(c, OCHRE, [0.70, 0.42, 0.14], 1 - sstep(0.2, 0.7, s));
@@ -144,7 +155,10 @@ export function bakeKeaTextures(N = 512) {
       c[0] = 0.04 + iris * 0.12; c[1] = 0.035 + iris * 0.07; c[2] = 0.03 + iris * 0.03;
       lerp3(c, c, [0.01, 0.01, 0.01], pupil);
       lerp3(c, c, [0.30, 0.30, 0.27], sstep(0.36, 0.44, d) * 0.6);  // pale bare eye-ring
-      h = 0.5; ro = 0.1 + sstep(0.36, 0.44, d) * 0.6;
+      // painted catchlight (a small window highlight) so the eye reads alive even in flat shade
+      const hl = 1 - sstep(0.035, 0.06, Math.hypot(s - 0.4, t - 0.62));
+      lerp3(c, c, [0.85, 0.85, 0.82], hl * 0.85);
+      h = 0.5; ro = 0.06 + sstep(0.36, 0.44, d) * 0.6;
     } else { c[0] = OLIVE[0]; c[1] = OLIVE[1]; c[2] = OLIVE[2]; }
     // fine barb grain everywhere
     const grain = (vnoise2(u * N * 0.7, v * N * 0.11, 21) - 0.5) * 0.05;
