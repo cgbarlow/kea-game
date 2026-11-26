@@ -22,7 +22,8 @@ import { KEA_PLAYER as K, LAYOUT as L } from '../../contracts.js';
 import { createBody } from './body.js';
 import { createView } from './view.js';
 
-const KINDS = ['mirror', 'wiper', 'seal', 'strap', 'seal'];      // van.perches order: 0 mirror, 1 wiper, 2-4 roof
+const PECK = 0.3;                                                  // s: one peck (lunge out and back)
+const KINDS = ['mirror', 'wiper', 'seal', 'strap', 'seal', 'seal']; // van.perches order: 0 mirror, 1 wiper, 2-4 roof; 5 = habitation door seal (ground level, from van.doorPos)
 const H = 0.3, STEP = 0.2, GRAV = 14, TUMBLE_G = 11;
 const PULL_DPS = 0.009, PULL_CHUNK = 0.42, DETACH = 0.06;         // van damage: ≈ v1 kea tugging, + the part coming off
 const BLOW_K = 0.3, BLOW_TUMBLE = 2.4;                            // force → accel factor; accumulated m/s to knock over
@@ -61,13 +62,20 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
   const cone = () => S.carrying && carry.kind === 'cone';
 
   // ---------------------------------------------------------------- pull targeting
+  // pullable parts per van: its perches plus the habitation door seal at kea height (reachable from the ground)
+  const parts = new Map();
+  function partsOf(v) {
+    let a = parts.get(v);
+    if (!a) { a = (v.perches || []).slice(); if (v.doorPos) a.push(v.doorPos.clone().setY((v.doorPos.y || 0) + 0.45)); parts.set(v, a); }
+    return a;
+  }
   function findTarget() {
     const r2 = K.pullReach * K.pullReach;
     let best = r2, bv = null, bi = -1, bk = '';
     const vs = vanList();
     for (let j = 0; j < vs.length; j++) {
       const v = vs[j]; if (v.lockedBy) continue;
-      const ps = v.perches, tk = taken.get(v);
+      const ps = partsOf(v), tk = taken.get(v);
       for (let i = 0; i < ps.length && i < KINDS.length; i++) {
         if (tk && tk[i]) continue;
         const d2 = _beak.distanceToSquared(ps[i]); if (d2 >= best) continue;
@@ -88,10 +96,10 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
     }
     if (bi === -1) return null;
     target.van = bv; target.index = bi; target.kind = bk; target.dist = Math.sqrt(best);
-    if (bi >= 0) target.position.copy(bv.perches[bi]); else target.position.copy(_cone);
+    if (bi >= 0) target.position.copy(partsOf(bv)[bi]); else target.position.copy(_cone);
     return target;
   }
-  let pv = null, pi = -1, pk = '';
+  let pv = null, pi = -1, pk = '', wantPrev = false;
   function stopPull(emit = true) {
     if (S.pullActive && emit) G.emit('kea:pull:stop', S, pv, pk, S.pulling);
     S.pullActive = false; chunkAcc = 0;
@@ -101,6 +109,11 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
     S.pullTarget = tg;
     if (S.pullActive && (!want || !tg || tg.van !== pv || tg.index !== pi)) stopPull();
     if (!S.pullActive) { S.pulling = Math.max(0, S.pulling - dt * 1.5); if (S.pulling <= 0) pi = -1; }
+    if (want && !wantPrev && S.mode !== 'tumble') {              // every click pecks (view model lunge + jaw snap)
+      S.peckT = PECK; tugS.impulse(-0.8);
+      if (!tg) { S.pullMiss = 2.2; G.emit('kea:pull:miss', S); }   // a peck at nothing: the HUD says why
+    }
+    wantPrev = want;
     if (!want || !tg) return;
     if (!S.pullActive) {
       if (tg.van !== pv || tg.index !== pi) S.pulling = 0;
@@ -170,6 +183,8 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
     const dive = input.down('sprint') || input.down('crouch');
     S.flapped = false;
     S.squawkCooldown = Math.max(0, S.squawkCooldown - dt);
+    S.pullMiss = Math.max(0, (S.pullMiss || 0) - dt);
+    S.peckT = Math.max(0, (S.peckT || 0) - dt); S.peck = S.peckT > 0 ? Math.sin(Math.PI * (1 - S.peckT / PECK)) : 0;
     S.squawkOpen = Math.max(0, S.squawkOpen - dt * 2.2);
     landT = Math.max(0, landT - dt);
     const tm = spd(), off = Math.min(S.offended, K.offendedMax);
@@ -331,7 +346,7 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
       jx = sh * (roll * 0.012 + jud * 0.001); jz = sh * Math.sin(t * 5.1 + 0.6) * 0.01; jy = sh * jud * 0.0015;
       rp = sh * jud * 0.0012; rr = sh * roll * 0.009;
     }
-    const pullDip = S.pullActive ? -0.06 + tugS.x * 0.02 + Math.sin(t * 13.7) * 0.004 : 0;
+    const pullDip = (S.pullActive ? -0.06 + tugS.x * 0.02 + Math.sin(t * 13.7) * 0.004 : 0) - (S.peck || 0) * 0.025;
     cam.position.set(pos.x + jx, pos.y + K.eye + hopY + flapY + dipS.x * 0.03 + jy, pos.z + jz);
     _e.set(S.pitch + tP + rp + pullDip + dipS.x * 0.02, S.yaw, rollS.x + tR + rr);
     cam.quaternion.setFromEuler(_e);

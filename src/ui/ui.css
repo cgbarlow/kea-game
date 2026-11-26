@@ -275,6 +275,9 @@ select { width: 100%; background: var(--doc-lo); color: var(--cream); border: 1p
   background: conic-gradient(var(--amber) calc(var(--p) * 1turn), rgba(239,232,212,.16) 0);
   -webkit-mask: radial-gradient(circle, transparent 13px, #000 14px); mask: radial-gradient(circle, transparent 13px, #000 14px); transition: opacity .12s; }
 .kea-pull.on { opacity: .9; }
+.kea-hint { position: absolute; left: 50%; top: calc(50% + 30px); transform: translateX(-50%); padding: 3px 9px; border-radius: 3px;
+  background: rgba(14, 18, 16, .55); color: var(--cream); font-size: 13px; letter-spacing: .02em; white-space: nowrap; opacity: 0; transition: opacity .15s; pointer-events: none; }
+.kea-hint.on { opacity: .92; }
 
 /* ---------- boot / loading: a DOC sign on a dark board ---------- */
 .boot { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start;

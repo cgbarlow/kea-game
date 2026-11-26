@@ -47,7 +47,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   const kg = G.mods.keagame || null;               // staged before the hud
   const kp = () => G.mods.keaplayer || null;
   const KQ = (k) => hud.querySelector(`[data-k="${k}"]`);
-  const KN = { banked: KQ('banked'), pips: KQ('pips'), cone: KQ('cone'), carry: KQ('carry'), notices: KQ('notices'), noticeNote: KQ('noticeNote'),
+  const KN = { hint: KQ('hint'), banked: KQ('banked'), pips: KQ('pips'), cone: KQ('cone'), carry: KQ('carry'), notices: KQ('notices'), noticeNote: KQ('noticeNote'),
     offended: KQ('offended'), offNote: KQ('offNote'), wing: KQ('wing'), wingState: KQ('wingState'), wingSegs: KQ('wingSegs'), pull: KQ('pull') };
   const noticeBoxes = KN.notices ? KN.notices.querySelectorAll('i') : [], offPips = KN.offended ? KN.offended.querySelectorAll('i') : [];
   const kPips = []; if (KN.pips) for (let i = 0; i < 9; i++) kPips.push(mk('', KN.pips, 'i'));
@@ -322,6 +322,15 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
       let wi = 0; while (wi < WING_STATE.length - 1 && st >= WING_STATE[wi][0]) wi++;
       if (wi !== K.wingS) { K.wingS = wi; text(KN.wingState, WING_STATE[wi][1]); flag(KN.wing, 'low', wi === 0); }
     }
+    // pull prompt under the reticle: what the beak can reach, or why a peck found nothing
+    let hint = '';
+    if (P && P.enabled) {
+      const tg = P.pullTarget;
+      if (P.carrying) hint = '';
+      else if (tg && !(P.pulling > 0)) hint = 'Hold left click: pull the ' + (PART_NAME[tg.kind] || tg.kind).toLowerCase();
+      else if (P.pullMiss > 0) hint = P.flying ? 'Land first. Kea cannot pull in flight.' : 'Nothing to pull here. Land on a campervan, or try a door seal.';
+    }
+    text(KN.hint, hint); flag(KN.hint, 'on', hint !== '');
     // pull progress ring around the reticle
     const pq = P && P.pulling > 0 ? Math.min(20, Math.round(P.pulling * 20)) : -1;
     if (pq !== K.pull) { K.pull = pq; flag(KN.pull, 'on', pq >= 0); if (pq >= 0) KN.pull.style.setProperty('--p', PULL_P[pq]); }

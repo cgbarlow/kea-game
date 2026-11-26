@@ -94,5 +94,5 @@ export const KPATH = [
 export const KEA_PLAYER = {
   eye: 0.35, radius: 0.18, walk: 1.6, hop: 2.4, flapClimb: 3.5, glideSink: 1.2, glideSpeed: 7, diveSpeed: 11,
   ceiling: 16, landSpeed: 3, landHeight: 0.5, stamDrain: 0.28, stamRecover: 0.45, fov: 78, viewFov: 54,
-  pullTime: 2.5, pullReach: 0.9, tumble: 1.2, squawkCooldown: 6, offendedMax: 3, bounds: { min: [-34, -2, -34], max: [34, 16, 20] },
+  pullTime: 2.5, pullReach: 1.5, tumble: 1.2, squawkCooldown: 6, offendedMax: 3, bounds: { min: [-34, -2, -34], max: [34, 16, 20] },
 };

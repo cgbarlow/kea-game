@@ -155,7 +155,8 @@ export function createView(G, { atlas } = {}) {
     // beak: squawk opens wide and lifts the upper mandible; a pull clamps and worries the part side to side
     const pulling = (po ? po.pull : S.pulling > 0 && S.pullActive) ? 1 : 0;
     const sq = po ? po.squawk || 0 : S.squawkOpen || 0;
-    jawS.target = Math.max(sq * 1.0, pulling ? 0.1 + 0.08 * Math.max(0, Math.sin(t * 9)) : 0, partKind ? 0.07 : 0, S.tumble > 0 ? 0.6 : 0, po && po.jaw || 0);
+    const pk = po ? 0 : S.peck || 0;                               // a click: lunge forward, beak snaps open then shut
+    jawS.target = Math.max(pk * 0.7, sq * 1.0, pulling ? 0.1 + 0.08 * Math.max(0, Math.sin(t * 9)) : 0, partKind ? 0.07 : 0, S.tumble > 0 ? 0.6 : 0, po && po.jaw || 0);
     raise.target = sq * 1 + (S.tumble > 0 ? 0.4 : 0);
     tug.target = pulling ? 0.5 + 0.5 * Math.sin(t * 7.3) : 0;
     wig.target = pulling ? Math.sin(t * 13.7) * 0.6 + Math.sin(t * 5.1) * 0.4 : (S.tumble > 0 ? Math.sin(t * 23) : 0);
@@ -177,8 +178,8 @@ export function createView(G, { atlas } = {}) {
 
     // head rig
     const idle = SHOT ? 0 : 0.0006 * Math.sin(t * 1.7);
-    head.position.set(sway.x * 0.5 + idle, -swayY.x * 0.5 + bob.x + land.x * 0.02 + heave.x * -0.01, tug.x * 0.006);
-    head.rotation.set(-swayY.x * 0.6 - (pulling ? 0.1 : 0) + raise.x * 0.1 - (partKind === 'cone' ? 0.05 : 0), sway.x * 0.8 + wig.x * 0.07, roll.x + wig.x * 0.03, 'YXZ');
+    head.position.set(sway.x * 0.5 + idle, -swayY.x * 0.5 + bob.x + land.x * 0.02 + heave.x * -0.01 + pk * 0.012, tug.x * 0.006 - pk * 0.09);
+    head.rotation.set(-swayY.x * 0.6 - (pulling ? 0.1 : 0) - pk * 0.35 + raise.x * 0.1 - (partKind === 'cone' ? 0.05 : 0), sway.x * 0.8 + wig.x * 0.07, roll.x + wig.x * 0.03, 'YXZ');
     upper.rotation.set(raise.x * 0.3 + REST_B.rx, REST_B.ry, REST_B.rz);
     upper.updateMatrix(); swing.position.copy(gripLocal).applyMatrix4(upper.matrix);
     jaw.rotation.x = -jawS.x * 0.55;
