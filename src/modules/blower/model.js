@@ -135,7 +135,7 @@ export function buildBlower(G) {
   bakeWear(k, { T0, TD });
   k.bakeAO({ radius: 0.05, samples: 12, strength: 0.6, keys: ['plastic', 'metal', 'rubber', 'glove'] });
   k.grime({ base: -0.33, foot: 0.06, down: 0.3, streak: 0.25, dirt: [0.62, 0.55, 0.45], scale: 14, seed: 41 }, ['plastic', 'metal']);
-  k.grime({ base: -0.4, foot: 0.0, down: 0.2, streak: 0.0, dirt: [0.7, 0.62, 0.5], scale: 20, seed: 7 }, ['glove']);
+  k.grime({ base: -0.45, foot: 0.0, down: 0.15, streak: 0.0, dirt: [0.42, 0.33, 0.24], scale: 20, seed: 7 }, ['glove']);
 
   const tint = 0xffffff;
   const sheltered = { preset: 'sheltered', dust: 0.65, edge: 0.7, macro: 1.4 };
@@ -143,7 +143,7 @@ export function buildBlower(G) {
     plastic: makeMaterial('plastic', { tint, scale: 0.12, rough: 1.15, normal: 1.8, weather: sheltered }),
     rubber: makeMaterial('rubber', { tint: 0x5a5a5a, scale: 0.12, weather: { preset: 'sheltered', dust: 0.6 } }),
     metal: makeMaterial('galvanised', { tint: 0x8a8c8e, scale: 0.18, rough: 1.1, weather: { preset: 'sheltered', dust: 0.5 } }),
-    glove: makeMaterial('tarp', { tint, scale: 0.09, rough: 1.15, normal: 0.6, weather: { preset: 'sheltered', dust: 0.3 } }),
+    glove: makeMaterial('tarp', { tint, scale: 0.05, rough: 1.4, normal: 0.9, weather: { preset: 'sheltered', dust: 0.08, edge: 0.5 } }),   // worn leather: crease + dirt drive roughness 0.7-1
     glass: new MeshStandardMaterial({ color: new Color(0.62, 0.6, 0.55), roughness: 0.18, metalness: 0, transparent: true, opacity: 0.42, depthWrite: false }),
     hot: new MeshStandardMaterial({ color: new Color(0.06, 0.05, 0.045), roughness: 0.6, metalness: 0.6, emissive: new Color(1.0, 0.32, 0.06), emissiveIntensity: 0 }),
     decal: st.material,
