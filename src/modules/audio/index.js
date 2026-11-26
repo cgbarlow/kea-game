@@ -29,6 +29,8 @@ export function create(G, { blower } = {}) {
   const whenRunning = (fn) => (running() ? fn() : mixer.unlocked.then(fn));
 
   const engine = A.engine = createEngineVoice(A, blower);
+  // v2 kea mode: the ranger's two-stroke, positional (follows the ranger's engine), built on first use
+  let rEngine = null;
   const steps = createFootsteps(A);
   let wind = null, rumble = null, stems = null;
 
@@ -79,6 +81,10 @@ export function create(G, { blower } = {}) {
     A.play('kea_flap', { follow: proxy(keaProxy, k), gain: 0.8, rate: 1.25, send: 0.15 });
     A.play('whoosh', { follow: proxy(keaProxy, k), gain: 0.45, send: 0.2 });
   });
+  // v2: the player kea's own voice and wings (non-positional: it is you); kea:land is handled above (S.i/.pos)
+  G.on('kea:squawk', () => A.play('kea_alarm', { gain: 1.0, send: 0.3 }));
+  G.on('kea:flap', () => A.play('kea_flap', { gain: 0.32, rate: 1.05 + Math.random() * 0.1, send: 0.05 }));
+  G.on('kea:tumble', () => { A.play('whoosh', { gain: 0.55, send: 0.2 }); A.play('kea_offended', { gain: 0.9, send: 0.3, when: 0.25 }); });
   G.on('possum:raid', (p) => {
     const t = now(); if (t - possT[p.i & 63] < 1.2) return; possT[p.i & 63] = t;
     A.play('possum_chatter', { follow: proxy(possProxy, p), gain: 0.8, send: 0.12 });
@@ -129,8 +135,14 @@ export function create(G, { blower } = {}) {
     mixer.update(G.camera);
     if (!A.ready || !running()) return;
     const game = G.mods.game;
-    const on = !G.paused && (!game || !game.state || game.state === 'shift');
-    engine.update(dt, on);
+    const on = !G.paused && (!game || !game.state || game.state === 'shift');   // v1 rules idle in kea mode → off
+    engine.update(dt, on && G.mode !== 'kea');
+    const rg = G.mods.ranger;
+    if (rg && (rg.enabled || rEngine)) {
+      if (!rEngine && rg.enginePos) rEngine = createEngineVoice(A, rg, { follow: { position: rg.enginePos }, refDistance: 4 });
+      const kg = G.mods.keagame;
+      if (rEngine) rEngine.update(dt, !G.paused && G.mode === 'kea' && rg.enabled && !!kg && kg.state === 'shift');
+    }
     if (!G.paused && game && game.player) steps.update(dt, game.player);
     if (A.demoOn) demoUpdate(dt);
     dirT -= dt; ambT -= dt; chatT -= dt;

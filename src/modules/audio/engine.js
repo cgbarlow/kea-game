@@ -5,7 +5,7 @@
 //   const steps = createFootsteps(A);           steps.update(dt, player);
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-export function createEngineVoice(A, blower) {
+export function createEngineVoice(A, blower, extra = null) {   // extra: play options merged in (e.g. { follow } for the ranger's blower)
   const E = { started: false, idle: null, rev: null, turbo: null, air: null, tm: 0, onT: 0, wasHot: false,
     last: new Float32Array(8).fill(-1) };
   const set = (v, k, g, r) => {
@@ -15,7 +15,7 @@ export function createEngineVoice(A, blower) {
   };
   E.start = () => {
     if (E.started || !A.ready || A.mixer.ctx.state !== 'running') return;
-    const o = { loop: true, bus: 'sfx', gain: 0, pitchJitter: 0, send: 0.06 };
+    const o = { loop: true, bus: 'sfx', gain: 0, pitchJitter: 0, send: 0.06, ...extra };
     E.idle = A.mixer.play('blower_idle', o); E.rev = A.mixer.play('blower_rev', o);
     E.turbo = A.mixer.play('blower_turbo', o); E.air = A.mixer.play('airflow', o);
     E.started = !!E.idle; E.last.fill(-1);
@@ -27,7 +27,7 @@ export function createEngineVoice(A, blower) {
     const hot = !!(blower && blower.overheated);
     E.tm += ((blower && blower.turbo ? 1 : 0) - E.tm) * Math.min(1, dt * 6);
     E.onT += ((on ? 1 : 0) - E.onT) * Math.min(1, dt * (on ? 4 : 2.5));
-    if (hot && !E.wasHot && on) A.play('blower_cough', { gain: 0.9 });
+    if (hot && !E.wasHot && on) A.play('blower_cough', { gain: 0.9, ...extra });
     E.wasHot = hot;
     const m = E.onT, bog = hot ? 0.82 : 1, tm = E.tm;
     const rise = sstep(0.04, 0.55, p), s = Math.sin(Math.min(1, p / 0.85) * Math.PI / 2);

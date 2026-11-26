@@ -2,9 +2,10 @@
 // One vec4 vertex attribute `aFx` per kit bucket (written after Kit.build from a geo → flags map):
 //   x  integrity rule: > 0 the part exists while integrity > x (lost below); < 0 it appears once integrity <= -x
 //   y  part: 1 = habitation door (swings about the hinge uHinge by uDoorA), 2 = driver's head (turns by uHeadA)
+//   uGone (vec4): up to 4 integrity rules forced off (v2 kea mode: a part a kea has pulled off; 0 = none)
 //   z  constant glow (lens: cab/interior lamp)        w  hazard-indicator blink (lens)
 // Uniforms are per van (one object shared by that van's materials + its shadow-depth material).
-import { MeshStandardMaterial, MeshDepthMaterial, RGBADepthPacking, Color, Vector2, Vector3, Float32BufferAttribute } from 'three';
+import { MeshStandardMaterial, MeshDepthMaterial, RGBADepthPacking, Color, Vector2, Vector3, Vector4, Float32BufferAttribute } from 'three';
 import { patch, after } from '../../cookbook/engine/patch.js';
 
 const VS_DECL = /*glsl*/`
@@ -15,9 +16,11 @@ uniform float uDoorA;
 uniform vec2 uHinge;
 uniform float uHeadA;
 uniform vec3 uHeadP;
+uniform vec4 uGone;
 vec3 vfxRotY(vec3 p, vec3 c, float a) { vec3 d = p - c; float s = sin(a), k = cos(a); return c + vec3(d.x * k + d.z * s, d.y, -d.x * s + d.z * k); }
 float vfxVis() {
   if (aFx.x > 0.0 && uVInt <= aFx.x) return 0.0;
+  if (aFx.x > 0.0 && min(min(abs(aFx.x - uGone.x), abs(aFx.x - uGone.y)), min(abs(aFx.x - uGone.z), abs(aFx.x - uGone.w))) < 0.004) return 0.0;
   if (aFx.x < 0.0 && uVInt > -aFx.x) return 0.0;
   return 1.0;
 }
@@ -26,7 +29,7 @@ vec3 vfxPivot() { return aFx.y > 1.5 ? uHeadP : vec3(uHinge.x, 0.0, uHinge.y); }
 `;
 
 export function vanUniforms() {
-  return { uVInt: { value: 1 }, uDoorA: { value: 0 }, uHinge: { value: new Vector2() }, uHeadA: { value: 0 }, uHeadP: { value: new Vector3() }, uBlink: { value: 0 }, uGlow: { value: 1 } };
+  return { uVInt: { value: 1 }, uDoorA: { value: 0 }, uHinge: { value: new Vector2() }, uHeadA: { value: 0 }, uHeadP: { value: new Vector3() }, uGone: { value: new Vector4() }, uBlink: { value: 0 }, uGlow: { value: 1 } };
 }
 
 // apply the vertex part of the patch (visibility + door/head rotation) to any material, incl. depth materials

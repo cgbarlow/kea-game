@@ -114,7 +114,10 @@ export function createProps(G, { T, mats, bark }) {
     const ex = epts[i], ez = epts[i + 1]; if (uOf(ex, ez) > 45) continue;
     for (let r = 0; r < 5; r++) { const a = r * 1.257 + rng() * 0.6, d = 1.3 + rng() * 1.4; ring.push(ex + Math.cos(a) * d, ez + Math.sin(a) * d); }
   }
-  const qall = new Float32Array(qpts.length + ring.length); qall.set(qpts); qall.set(ring, qpts.length);
+  // v2: nothing grows through the kea's stash ledge (filtered after the disk so the rest of the layout is unchanged)
+  const keep = []; const SX = L.stash[0], SZ = L.stash[2];
+  for (const src of [qpts, ring]) for (let i = 0; i < src.length; i += 2) if (Math.hypot(src[i] - SX + 0.25, src[i + 1] - SZ) > 2.1) keep.push(src[i], src[i + 1]);
+  const qall = new Float32Array(keep);
   add(scatter(G, { parts: [{ geo: tg, material: tuss }], points: qall, heightAt: T.heightAt, normalAt: T.normalAt, scale: [0.6, 1.6], scaleY: [0.75, 1.2],
     align: 0.35, sink: 0.08, cell: 120, shadow: false, fade: [30, 55, 1.7], tint: { color: 0xffffff, h: 0.03, s: 0.12, l: 0.12 },
     sway: { amp: 0.035, freq: 1.1, power: 2, height: 0.72, flutter: 0.003 }, seed: SEED + 16 }), [tg], far, 'tussock');

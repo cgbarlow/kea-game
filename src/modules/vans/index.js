@@ -120,7 +120,7 @@ export function create(G, { mats, colliders = [] }) {
     }
   }
   G.on('update', update);
-  const reset = () => { for (const v of list) { v.integrity = 1; v.lastHit = -99; v.lastKind = ''; v.doorOpen = false; v.uniforms.uDoorA.value = 0; } };
+  const reset = () => { for (const v of list) { v.integrity = 1; v.lastHit = -99; v.lastKind = ''; v.doorOpen = false; v.uniforms.uDoorA.value = 0; v.uniforms.uGone?.value.set(0, 0, 0, 0); } };
   return { list, root, reset, update, selfUpdating: true, dispose() { G.off?.('update', update); G.scene.remove(root); } };
 }
 
