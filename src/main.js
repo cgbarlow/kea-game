@@ -257,7 +257,7 @@ function installKeaMode(G, { game, blower, vans }) {
 // carried part, ranger stage, keagame preview. Applied only under ?shot (frozen rules) so the stills are repeatable.
 const KSTAGE = [
   { pose: { phase: 0, flap: 0, fold: 1, pull: 1, jaw: 0.12 }, ranger: ['turn', { at: [-1.7, -2.4], lookAt: [-0.35, 2.1, 1.75], lag: 0.6, walk: 0.5 }] },
-  { pose: { phase: 0, flap: 0, fold: 0 }, part: 'wiper', fly: true, ranger: ['walk', { at: [-4.0, -1.9], yaw: -1.5 }] },
+  { pose: { phase: 0, flap: 0, fold: 0 }, fly: true, ranger: ['walk', { at: [-4.0, -1.9], yaw: -1.5 }] },
   { pose: { phase: 0, flap: 0, fold: 1 }, ranger: ['walk', { at: [20.0, -8.0], yaw: -1.4 }] },
   { pose: { phase: 0.6, flap: 1, fold: 0 }, part: 'cone', cone: 'carried', fly: true, ranger: ['blow', { at: [-3.0, -1.8], aimAt: [5.0, 6.0, 5.0] }] },
   { pose: { phase: 0, flap: 0, fold: 1 }, stash: 9, cone: 'banked', ranger: ['walk', { at: [-5.0, -1.9], yaw: 0.5 }] },

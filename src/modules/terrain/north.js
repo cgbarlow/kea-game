@@ -8,7 +8,7 @@ import { Kit } from '../../cookbook/geo/kit.js';
 import { rngFrom } from '../../cookbook/geo/noise.js';
 import { makeMaterial } from '../../cookbook/materials/library.js';
 import { axisZ, oldScar, BENCH } from './height.js';
-import { SEED } from '../../contracts.js';
+import { SEED, LAYOUT as L } from '../../contracts.js';
 
 const zOf = (x, u) => axisZ(x) - BENCH.half - u;      // world z of a point u metres up the north face
 
@@ -60,6 +60,7 @@ export function createNorth(G, { T, rockMat, add, group, far }) {
     const u = 5 + Math.sin(x * 0.05) * 1.2, z = zOf(x, u), y = T.heightAt(x, z);
     const lean = (fr() < 0.22 ? 0.18 + fr() * 0.25 : 0.03 * (fr() - 0.5)) , ry = (fr() - 0.5) * 0.3;
     const snapped = fr() < 0.08, h = snapped ? 0.55 + fr() * 0.2 : 1.25;
+    if (Math.hypot(x - L.stash[0], z - L.stash[2]) < 4.5) { fr(); posts.push(null); continue; }   // v2: the kea stash ledge (same rng draws)
     f.push(x, y - 0.3, z, ry, lean, (fr() - 0.5) * 0.08);
     f.box(0.11, h + 0.3, 0.11, 'post', { at: [0, (h + 0.3) / 2, 0], r: 0.012, step: 2, color: 0xd8d0c4 });
     f.pop();
