@@ -1,10 +1,11 @@
 // vans/detail — cab interior + the tourists (one per character, driver's head turns), roof kit per van (hatch,
 // vents, solar / air-con), and the comedy props each party has set up beside its van (deck chairs + thermos,
-// washing line, LPG bottle + camera tripod). Van-local metres, nose to -Z. Prop colliders returned in local space.
+// washing line (laundry.js), LPG bottle + camera tripod). Van-local metres, nose to -Z. Prop colliders returned in local space.
 import { Vector3 } from 'three';
 import { extrudeBevel, lathe } from '../../cookbook/geo/kit.js';
 import { roundPoly } from './shape.js';
 import { DIM as D } from './body.js';
+import { buildWashing } from './laundry.js';
 
 const SIDE_ROT = [0, Math.PI / 2, 0];
 const headGeo = () => lathe([[0, -0.115], [0.055, -0.105], [0.08, -0.06], [0.088, 0], [0.084, 0.05], [0.062, 0.1], [0.03, 0.122], [0, 0.126]], { seg: 18, crease: 60 });
@@ -138,26 +139,8 @@ export function buildProps(k, T, cfg) {
     for (const [mx, c] of [[0.1, 0xd8d4c8], [0.2, 0x9a3a2a]]) k.cyl(0.04, 0.09, 'paint', { at: [mx, 0.718, 0.06], seg: 14, color: c });
     k.pop();
     out.push([bx + 0.45, -0.6, 1.9, 1.9, 0.9]);
-  } else if (cfg.props === 'washing') {                                                                           // line from the awning bracket to a pole
-    const px = -(hw + 2.6), pz = 2.3, a = new Vector3(-(hw + 0.05), 2.62, 1.1), b = new Vector3(px, 1.95, pz);
-    k.cyl(0.02, 1.98, 'metal', { at: [px, 0.99, pz], seg: 8, color: 0x8a8c8e });
-    for (const s of [-1, 1]) k.tube([new Vector3(px, 0.7, pz), new Vector3(px + s * 0.35, 0, pz + 0.2)], 0.01, 'metal', { radial: 5 });
-    k.tube([new Vector3(px, 0.7, pz), new Vector3(px, 0, pz - 0.38)], 0.01, 'metal', { radial: 5 });
-    const sag = (t) => new Vector3().lerpVectors(a, b, t).add(new Vector3(0, -Math.sin(t * Math.PI) * 0.22, 0));
-    const line = []; for (let i = 0; i <= 12; i++) line.push(sag(i / 12));
-    k.tube(line, 0.004, 'dark', { radial: 4, color: 0xd8d8d0 });
-    const cloth = [[0.14, 0.55, 0.42, 0xd8571c], [0.3, 0.3, 0.2, 0xe8e4da], [0.42, 0.62, 0.5, 0x2f5d7c], [0.56, 0.18, 0.16, 0x3a3a3a], [0.62, 0.18, 0.16, 0x3a3a3a], [0.76, 0.45, 0.36, 0x9c8548]];
-    for (const [t, cw, chh, c] of cloth) {
-      const p = sag(t), d = new Vector3().subVectors(b, a), yaw = Math.atan2(-d.z, d.x);
-      k.push(p.x, p.y, p.z, yaw);
-      const w2 = cw / 2, sl = cw * 0.28, shp = cw > 0.35 && chh > 0.5 ? [[-w2 + sl, 0], [-w2, -0.03], [-w2 - 0.04, -0.2], [-w2 + sl * 0.7, -0.24], [-w2 + sl * 0.8, -chh], [w2 - sl * 0.8, -chh], [w2 - sl * 0.7, -0.24], [w2 + 0.04, -0.2], [w2, -0.03], [w2 - sl, 0], [0, -0.06]]
-        : cw < 0.2 ? [[-w2, 0], [w2, 0], [w2, -chh + 0.05], [w2 + 0.06, -chh], [-w2, -chh + 0.01]] : [[-w2, 0], [w2, 0], [w2 * 0.96, -chh], [-w2 * 0.97, -chh + 0.01]];
-      k.add(extrudeBevel(shp, { depth: 0.01, bevel: 0.003, bevelSeg: 1 }), 'cab', { at: [0, 0.01, 0], rot: [0.06, 0, (t - 0.5) * 0.1], color: c, occ: false });
-      for (const s of [-1, 1]) k.box(0.012, 0.05, 0.016, 'metal', { at: [s * cw * 0.4, 0.0, 0], color: 0xd2b048 });
-      k.pop();
-    }
-    k.cyl(0.18, 0.35, 'paint', { at: [-(hw + 1.2), 0.175, 2.9], seg: 18, color: 0xc8c4b8 });                      // laundry basket (empty: optimism)
-    out.push([px, pz, 0.6, 0.6, 2.0]);
+  } else if (cfg.props === 'washing') {
+    out.push(buildWashing(k));
   } else if (cfg.props === 'gas') {
     k.push(hw + 0.6, 0, -0.65);                                                                                   // 9 kg LPG bottle, chained to nothing
     k.add(lathe([[0, 0], [0.13, 0.0], [0.155, 0.04], [0.155, 0.43], [0.12, 0.51], [0.05, 0.54], [0, 0.545]], { seg: 22 }), 'paint', { color: 0xb0b4b8 });

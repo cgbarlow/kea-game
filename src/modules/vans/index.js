@@ -8,7 +8,7 @@
 //   (0.85 → 0.2); the hazard lights blink for 3 s after a hit and permanently under 0.25 (the van has given up).
 //   Per van: 7 kit/decal meshes + 1 lights.js dome bulb = 8 draw calls; ~25-30 k tris. Allocation-free update.
 //   showcase(G) → { cam, target }
-import { Group, Vector3, Box3, Mesh, Matrix4, Euler, Quaternion, Float32BufferAttribute } from 'three';
+import { Group, DoubleSide, Vector3, Box3, Mesh, Matrix4, Euler, Quaternion, Float32BufferAttribute } from 'three';
 import { Kit, mergeGeos } from '../../cookbook/geo/kit.js';
 import { makeMaterial } from '../../cookbook/materials/library.js';
 import { decalGeo, decalMaterial } from '../../cookbook/decals/canvas-text.js';
@@ -38,6 +38,8 @@ export function create(G, { mats, colliders = [] }) {
   const lights = G.mods?.lights;
   const metal = makeMaterial('galvanised', { tint: 0xffffff, rough: 0.7 }); metal.vertexColors = true;
   const cab = makeMaterial('plastic', { tint: 0xffffff, weather: 'sheltered' }); cab.vertexColors = true;
+  const cloth = makeMaterial('tarp', { tint: 0xffffff, rough: 1.6, scale: 0.35, normal: 0.6, weather: 'sheltered' }); // woven fabric, laundry
+  cloth.vertexColors = true; cloth.side = DoubleSide; cloth.shadowSide = DoubleSide;
   const list = [];
   for (const d of L.vans) {
     const C = CFG[d.id] || CFG.A, U = vanUniforms(), flags = new Map();
@@ -52,7 +54,7 @@ export function create(G, { mats, colliders = [] }) {
     k.grime({ base: 0, foot: C.foot, streak: C.grime, down: 0.3, dirt: [0.62, 0.55, 0.46], seed: d.id.charCodeAt(0) }, ['paint', 'dark', 'metal']);
     const paint = makeMaterial('painted_metal', { tint: C.tint, rough: 0.62 }); paint.vertexColors = true;
     const dark = makeMaterial('rubber', { tint: 0xffffff }); dark.vertexColors = true;
-    const vm = { paint: patchVan(paint, U), dark: patchVan(dark, U), metal, cab: patchVan(cab.clone(), U), glass: glassMaterial(U), lens: lensMaterial(U), default: paint };
+    const vm = { paint: patchVan(paint, U), dark: patchVan(dark, U), metal, cab: patchVan(cab.clone(), U), glass: glassMaterial(U), lens: lensMaterial(U), cloth, default: paint };
     const g = k.build(vm);
     writeFx(k, g, flags);
     const depth = depthMaterial(U);
