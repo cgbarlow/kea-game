@@ -17,7 +17,7 @@ const tOf = (x, z) => slipShape(x, z).t;
 export function createDebris(G, { T, add, group, far, rockMat }) {
   const rng = rngFrom(SEED + 401), low = G.quality.tier === 'low';
   let tris = 0, calls = 0;
-  const slipRock = rockMat('slipRock', 0xece4d8), slipSlab = rockMat('slipSlab', 0xd8d2c8), slipGravel = rockMat('slipGravel', 0xe2dace);
+  const slipRock = rockMat('slipRock', 0xe2e5e8, { thick: 0.06 }), slipSlab = rockMat('slipSlab', 0xd4d7da, { thick: 0.05 }), slipGravel = rockMat('slipGravel', 0xdcdfe2, { thick: 0.008, amount: 0.7 });   // fresh grey schist
 
   // boulders: fractured blocks, small near the head, the coarse front (1.5-3.5 m) piled at the toe
   const bA = rockGeo({ seed: 5, radius: 1, detail: 2, cuts: 8, squash: 0.72, noise: 0.22 });

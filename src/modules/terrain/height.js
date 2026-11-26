@@ -73,6 +73,7 @@ export function heightFn() {
       const sx = (x - S.x) / 17, su = (u - 45) / 38;
       n -= 13 * Math.exp(-(sx * sx + su * su)) * sstep(0, 12, u);
       n -= 5.5 * Math.exp(-sx * sx * 1.6) * sstep(1.12, 0.98, su + (vnoise2(x * 0.08, 7.7, SEED + 53) - 0.5) * 0.12) * sstep(-0.9, 0.3, su);   // crown scarp: the fresh head wall
+      n -= 1.1 * oldScar(x, z) * sstep(1, 6, u);                               // the older slip chute: a shallow raw trough
       h += Math.max(n, 0.12 * u) * sstep(0, 2, u);
     }
     if (v > 0) { // south wall: beech forest slope, lumpy spurs
@@ -128,4 +129,15 @@ export function slipMask(x, z) {
   const u = -(z - axisZ(x)) - BENCH.half, sx = (x - S.x) / 19, su = (u - 45) / 45;
   const scar = Math.exp(-(sx * sx + su * su)) * sstep(-4, 8, u);
   return clamp(Math.max(lobe, sstep(0.15, 0.45, scar)), 0, 1);
+}
+
+// an older, smaller slip on the north face opposite the car park (seen from spawn looking north): a raw grey chute of
+// scree from a head scarp ~50 m up, narrowing down the face and fanning out onto the talus apron at the toe. 0..1.
+export function oldScar(x, z) {
+  const u = -(z - axisZ(x)) - BENCH.half;
+  if (u < -1 || u > 60 || x < -40 || x > 5) return 0;
+  const xc = -18 + 3 * Math.sin(u * 0.07) + (vnoise2(u * 0.09, 2.2, SEED + 57) - 0.5) * 4;
+  const w = 5 + 4 * sstep(28, 48, u) + 5 * (1 - sstep(0, 8, u));
+  const d = Math.abs(x - xc) + (vnoise2(x * 0.4, z * 0.4, SEED + 58) - 0.5) * 1.6;
+  return (1 - sstep(w * 0.55, w, d)) * sstep(-1, 1.5, u) * (1 - sstep(50, 56, u + (vnoise2(x * 0.2, 5.5, SEED + 59) - 0.5) * 4));
 }

@@ -8,7 +8,9 @@ import { Kit, tube } from '../../cookbook/geo/kit.js';
 import { rngFrom, vnoise2, sstep, clamp } from '../../cookbook/geo/noise.js';
 import { makeMaterial } from '../../cookbook/materials/library.js';
 import { createDebris } from './debris.js';
-import { slipMask, slipShape, roadMask, axisZ, benchDist, BENCH } from './height.js';
+import { createNorth } from './north.js';
+import { patchRockSnow } from './rocksnow.js';
+import { slipMask, slipShape, roadMask, oldScar, axisZ, benchDist, BENCH } from './height.js';
 import { LAYOUT as L, SEED, WORLD } from '../../contracts.js';
 
 const uOf = (x, z) => -(z - axisZ(x)) - BENCH.half;
@@ -24,7 +26,7 @@ export function createProps(G, { T, mats, bark }) {
 
   // fresh slip rock: lighter, cleaner than the weathered scree (its own material so it can be paler)
   // one material per scatter setting (fade uniforms live on the material); the bakes are shared, so this is cheap
-  const rockMat = (name, tint) => { const m = makeMaterial('rock', { triplanar: true, tint, rough: 1.4, metal: 0, weather: { preset: 'prop', wet: 0.3 } }); m.vertexColors = true; m.name = name; return m; };
+  const rockMat = (name, tint, snow = {}) => { const m = makeMaterial('rock', { triplanar: true, tint, rough: 1.4, metal: 0, weather: { preset: 'prop', wet: 0.3 } }); m.vertexColors = true; m.name = name; patchRockSnow(m, snow); return m; };
   const scree = rockMat('screeTalus', 0x9a9894), erratic = rockMat('erratic', 0x8e8c88);
   void mats;
 
@@ -50,7 +52,7 @@ export function createProps(G, { T, mats, bark }) {
   const k = new Kit(), tr = rngFrom(SEED + 33);
   for (let i = 0; i < 6; i++) {
     let x = 0, z = 0;
-    for (let t = 0; t < 40; t++) { x = S.x + (tr() - 0.5) * 34; z = S.z + (tr() - 0.5) * 30; const sh = slipShape(x, z); if (sh.s > 0.25 && sh.t > 0.15 && sh.t < 0.8 && Math.hypot(x - 44, z + 12) > 7) break; }   // keep the pose-1 foreground (44,-12) clear
+    for (let t = 0; t < 40; t++) { x = S.x + (tr() - 0.5) * 34; z = S.z + (tr() - 0.5) * 30; const sh = slipShape(x, z); if (sh.s > 0.25 && sh.t > 0.3 && sh.t < 0.85 && Math.hypot(x - 44, z + 12) > 7) break; }   // keep the pose-1 foreground (44,-12) clear; none on the crest skyline
     const len = 5 + tr() * 7, a = tr() * Math.PI * 2, r0 = 0.22 + tr() * 0.16, dx = Math.cos(a), dz = Math.sin(a);
     const pts = [];
     for (let s = 0; s <= 6; s++) { const px = x + dx * len * s / 6, pz = z + dz * len * s / 6; pts.push([px, T.heightAt(px, pz) + r0 * (s === 0 ? 0.6 : s === 6 ? 0.45 : -0.05) + (s === 3 ? 0.12 : 0), pz]); }   // half buried, ends proud
@@ -62,14 +64,15 @@ export function createProps(G, { T, mats, bark }) {
       k.add(tube([[e[0] + ox, e[1] + oy, e[2] + oz], [e[0] + ox + dx * sl, e[1] + oy * 0.8, e[2] + oz + dz * sl]], (s) => r0 * 0.42 * (1 - 0.85 * s), { radial: 5, caps: false }), 'bark', { occ: false, color: 0xe0c8a4 });
     }
     // root plate on the other end (half of them): a soil-and-root disc stood on edge
-    if (i % 2 === 0) {
+    if (i % 2 === 0 && slipShape(x, z).t > 0.5) {                    // only low on the lobe: a root disc on the crest read as a spiky stray prop
       const b = pts[0];
-      k.push(b[0] - dx * 0.15, b[1] + 0.2, b[2] - dz * 0.15, -a + Math.PI / 2, 0, 0, 0.85 + tr() * 0.4);
+      k.push(b[0] - dx * 0.15, b[1] - 0.15, b[2] - dz * 0.15, -a + Math.PI / 2, 0, 0, 0.75 + tr() * 0.3);
       const rp = rockGeo({ seed: 60 + i, radius: 1, detail: 2, cuts: 2, squash: 1, noise: 0.45 });
       rp.scale(0.55, 1.05, 1.3);
       k.add(rp, 'soil', { occ: false, color: 0xc0a888, at: [0, 0.35, 0] });
       for (let st = 0; st < 5; st++) { const sg = rockGeo({ seed: 90 + i * 7 + st, radius: 0.16 + tr() * 0.12, detail: 1, cuts: 4, squash: 0.7 }); k.add(sg, 'soil', { occ: false, color: 0xe8e2d8, at: [0.3 + tr() * 0.1, 0.1 + tr() * 1.1, (tr() - 0.5) * 1.6] }); }
-      for (let rr = 0; rr < 9; rr++) { const ra = tr() * Math.PI * 2, rl = 0.9 + tr() * 1.1, ry = Math.sin(ra) * 1.1 + 0.6, rz = Math.cos(ra) * 1.2; k.add(tube([[0, ry * 0.6, rz * 0.6], [-0.3 - tr() * 0.5, ry + Math.sin(ra) * rl * 0.4, rz + Math.cos(ra) * rl * 0.5]], (s) => 0.07 * (1 - 0.8 * s), { radial: 5, caps: false }), 'bark', { occ: false }); }
+      // root stubs: short, torn, drooping, inside ~1.25x the disc outline (no long spikes against the sky)
+      for (let rr = 0; rr < 10; rr++) { const ra = tr() * Math.PI * 2, rl = 0.2 + tr() * 0.3, ry = Math.sin(ra) * 0.95 + 0.35, rz = Math.cos(ra) * 1.15; k.add(tube([[0, ry * 0.8, rz * 0.8], [-0.15 - tr() * 0.2, ry + Math.sin(ra) * rl * 0.3 - rl * 0.5, rz + Math.cos(ra) * rl * 0.4]], (s) => 0.06 * (1 - 0.6 * s), { radial: 5, caps: true }), 'bark', { occ: false }); }
       k.pop();
     }
     // a broken limb or two beside it
@@ -86,16 +89,22 @@ export function createProps(G, { T, mats, bark }) {
   trunks.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; tris += triCount(m.geometry); calls++; } });
   group.add(trunks);
 
+  // the north face opposite the car park: outcrops, the old slip chute's blocks, a fence line, the old retaining wall
+  const north = createNorth(G, { T, rockMat, add, group, far });
+  tris += north.tris; calls += north.calls;
+
   // tussock (Chionochloa): golden-brown clumps on verges, the scree toe and the valley floor beyond the slab
   const tuss = new MeshStandardMaterial({ side: DoubleSide, vertexColors: true, roughness: 0.92, color: new Color(0.40, 0.30, 0.12) });
   tuss.name = 'tussock'; tuss.userData.weather = { preset: 'prop', snow: 0.3, wet: 0.4, beads: 0 };
   foliagePatch(tuss, { trans: 0.22 });
   const tg = grassTuftGeo({ seed: 2, blades: 24, h: 0.85, w: 0.085, spread: 0.3, segs: 3, bend: 0.6 });
-  const qpts = poissonDisk({ x0: -150, z0: -75, w: 300, h: 115, r: low ? 2.1 : 1.55, rng, accept: (x, z) => {
+  const qpts = poissonDisk({ x0: -150, z0: -75, w: 300, h: 115, r: low ? 1.8 : 1.3, rng, accept: (x, z) => {
     if (benchDist(x, z) < 0.6 || roadMask(x, z) > 0.1 || slipMask(x, z) > 0.3) return false;
     const u = uOf(x, z), v = vOf(x, z);
-    const cl = sstep(0.45, 0.72, vnoise2(x * 0.07, z * 0.07, SEED + 3));      // tussock grows in drifts, not as stubble
-    if (u > 0) return u < 40 && rng() < (0.9 - 0.7 * sstep(5, 40, u)) * cl;
+    if (oldScar(x, z) > 0.2) return false;                                    // the raw chute is bare
+    // tussock grows in clumps and drifts with bare stony ground between, never as an even stubble
+    const cl = sstep(0.5, 0.7, vnoise2(x * 0.11, z * 0.11, SEED + 3) * 0.7 + vnoise2(x * 0.035, z * 0.035, SEED + 4) * 0.3);
+    if (u > 0) return u < 40 && rng() < (1.0 - 0.6 * sstep(5, 40, u)) * cl * cl;
     if (v > 0) return v < 4.5 && rng() < 0.7;
     return rng() < 0.8 * cl;                               // valley floor beyond the slab (|x| > 95)
   } });
@@ -106,9 +115,9 @@ export function createProps(G, { T, mats, bark }) {
     for (let r = 0; r < 5; r++) { const a = r * 1.257 + rng() * 0.6, d = 1.3 + rng() * 1.4; ring.push(ex + Math.cos(a) * d, ez + Math.sin(a) * d); }
   }
   const qall = new Float32Array(qpts.length + ring.length); qall.set(qpts); qall.set(ring, qpts.length);
-  add(scatter(G, { parts: [{ geo: tg, material: tuss }], points: qall, heightAt: T.heightAt, normalAt: T.normalAt, scale: [0.85, 1.6], scaleY: [0.75, 1.15],
+  add(scatter(G, { parts: [{ geo: tg, material: tuss }], points: qall, heightAt: T.heightAt, normalAt: T.normalAt, scale: [0.6, 1.6], scaleY: [0.75, 1.2],
     align: 0.35, sink: 0.08, cell: 120, shadow: false, fade: [30, 55, 1.7], tint: { color: 0xffffff, h: 0.03, s: 0.12, l: 0.12 },
-    sway: { amp: 0.07, freq: 1.7, power: 2, height: 0.72, flutter: 0.015 }, seed: SEED + 16 }), [tg], far, 'tussock');
+    sway: { amp: 0.035, freq: 1.1, power: 2, height: 0.72, flutter: 0.003 }, seed: SEED + 16 }), [tg], far, 'tussock');
   void clamp;
-  return { group, far, tris, calls, parts, materials: [...deb.materials, scree, erratic, soil, wood, tuss] };
+  return { group, far, tris, calls, parts, materials: [...deb.materials, ...north.materials, scree, erratic, soil, wood, tuss] };
 }

@@ -56,7 +56,17 @@ float terFbm(vec2 p) { return 0.5 * terNoise(p) + 0.3 * terNoise(p * 2.13 + 7.1)
   float grassy = smoothstep(0.30, 0.12, sl + (m2 - 0.5) * 0.22) * (1.0 - smoothstep(30.0, 85.0, hy + (m1 - 0.5) * 50.0));
   grassy = max(grassy, smoothstep(0.38, 0.2, sl) * (1.0 - smoothstep(4.0, 14.0, hy)));
   vec3 c = mix(scree, tuss, grassy);
-  c = mix(c, rockc, smoothstep(0.5, 0.75, sl + (m3 - 0.5) * 0.15));
+  float rockW = smoothstep(0.5, 0.75, sl + (m3 - 0.5) * 0.15);
+  c = mix(c, rockc, rockW);
+  // greywacke bedding: near-horizontal strata bands, warped and dipping, strongest on bare steep rock; fade before aliasing
+  float pxS = length(fwidth(vTerW));
+  float sy = hy * 0.075 + (m1 - 0.5) * 2.2 + w.x * 0.006 + terNoise(w * 0.03) * 1.1;
+  float band = smoothstep(0.2, 0.8, abs(fract(sy) - 0.5) * 2.0) * 0.55 + 0.45 * terNoise(vec2(sy * 2.3, w.y * 0.015 + w.x * 0.01));
+  float strata = smoothstep(0.3, 0.65, sl) * (1.0 - smoothstep(2.0, 5.0, pxS)) * smoothstep(0.3, 0.6, m2 * 0.6 + m1 * 0.4);   // patchy, not contour lines
+  c *= mix(1.0, 0.84 + 0.26 * band, strata);
+  // ridge / gully relief from curvature: gullies hold shade and damp, ribs catch light
+  float cvA = vTer.z;
+  c *= 1.0 - 0.28 * max(cvA, 0.0) * (1.0 - vTer.x) + 0.16 * max(-cvA, 0.0);
   // fall-line frame: scree channels / seep stains run downhill; flat ground falls back to an isotropic frame
   vec2 fd = tn.xz;
   float onSlope = smoothstep(0.04, 0.16, sl);
@@ -70,7 +80,7 @@ float terFbm(vec2 p) { return 0.5 * terNoise(p) + 0.3 * terNoise(p * 2.13 + 7.1)
   litter = mix(litter, vec3(0.06, 0.085, 0.03), smoothstep(0.5, 0.75, m2) * 0.8);
   c = mix(c, litter, vTer.x);
   // fresh slip debris: grey-brown wet clay and broken rock, pale clasts
-  vec3 debris = mix(vec3(0.15, 0.135, 0.115), vec3(0.27, 0.255, 0.23), smoothstep(0.35, 0.8, m3 * 0.5 + m4 * 0.5));
+  vec3 debris = mix(vec3(0.21, 0.21, 0.205), vec3(0.40, 0.395, 0.385), smoothstep(0.3, 0.8, m3 * 0.5 + m4 * 0.5));   // raw grey schist: fresh, unweathered
   c = mix(c, debris, vTer.y);
   // road continuation beyond the slab
   c = mix(c, vec3(0.05, 0.05, 0.055) * (0.85 + 0.3 * m4), vTer.w);
@@ -101,15 +111,26 @@ float terFbm(vec2 p) { return 0.5 * terNoise(p) + 0.3 * terNoise(p * 2.13 + 7.1)
   L = mix(L, L * (0.35 + 1.25 * run), onSlope * smoothstep(0.95, 0.4, L));
   float edgeN = (terAniso(w, fd, vec2(0.35, 0.03), 4.4) - 0.5) * 0.4 * hiA * onSlope;
   float sn = (L + edgeN + (streak - 0.45) * mix(0.55, 0.3, onSlope)) * (1.0 - vTer.x) * (1.0 - vTer.w) * smoothstep(4.0, 14.0, hy);
-  float snowA = smoothstep(0.38, 0.56, sn);
+  // on the high massif (above the snow line proper) snow sits by slope: benches/ledges (normal.y > ~0.75) hold it
+  float hiM = smoothstep(uTerP.y - 40.0, uTerP.y + 40.0, hy);
+  float slopeHold = smoothstep(0.68, 0.84, tn.y + (m2 - 0.5) * 0.18 + (streak - 0.45) * 0.12);
+  sn = mix(sn, max(sn * 0.6, slopeHold * 0.95 + (m1 - 0.5) * 0.2), hiM * (1.0 - vTer.x));
+  float snowA = smoothstep(0.30, 0.64, sn);                                    // soft edge, no cut-out blobs
   // steep faces: what holds is striated (runnels between rock ribs), never a solid sheet
   float steep = smoothstep(0.05, 0.3, sl) * hiA;
   float rib = 1.0 - abs(terAniso(w, fd, vec2(0.5, 0.025), 6.6) * 2.0 - 1.0);
   snowA *= mix(1.0, smoothstep(0.1, 0.5, rib + 0.3 * smoothstep(0.75, 1.1, sn)), steep * 0.9);
   c *= 1.0 - 0.28 * alt * (1.0 - vTer.x);                                     // high rock is darker, wetter: snow reads crisp against it
-  vec3 snowc = mix(vec3(0.46, 0.53, 0.64), vec3(0.55, 0.575, 0.62), smoothstep(0.42, 0.85, sn)) * (0.93 + 0.07 * m4);
+  vec3 snowc = mix(vec3(0.42, 0.48, 0.58), vec3(0.53, 0.555, 0.60), smoothstep(0.42, 0.85, sn)) * (0.93 + 0.07 * m4);
+  float sunF = clamp(dot(tn, normalize(vec3(-0.91, 0.24, -0.33))) * 2.5 + 0.3, 0.0, 1.0);
+  snowc *= mix(vec3(0.85, 0.9, 1.0), vec3(1.0), sunF);                         // faces turned from the sun: blue snow
   c = mix(c, snowc, snowA);
   terSnow = snowA;
+  // aerial perspective (albedo part only; atmos adds the inscatter): far slopes desaturate and flatten toward a cool grey
+  float dCam = length(vTerW - cameraPosition);
+  float ap = smoothstep(120.0, 650.0, dCam);
+  float lc = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = mix(c, mix(vec3(lc), vec3(0.20, 0.215, 0.24), 0.35) * vec3(0.95, 0.98, 1.06), ap * 0.55);
   diffuseColor.rgb = c;
 }`);
     s.fragmentShader = after(s.fragmentShader, '#include <roughnessmap_fragment>', /*glsl*/`

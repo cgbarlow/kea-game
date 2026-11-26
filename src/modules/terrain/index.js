@@ -10,7 +10,7 @@
 import { Group } from 'three';
 import { createFarfield, FARFIELD_PRESETS } from '../../cookbook/backdrop/farfield.js';
 import { sstep, clamp } from '../../cookbook/geo/noise.js';
-import { heightFn as makeHeight, forestMask, slipMask, roadMask, BENCH, EXT } from './height.js';
+import { heightFn as makeHeight, forestMask, slipMask, roadMask, oldScar, axisZ, BENCH, EXT } from './height.js';
 import { lodTerrain } from './lodmesh.js';
 import { patchSplat } from './splat.js';
 import { createForest } from './forest.js';
@@ -44,8 +44,10 @@ export function create(G, { mats }) {
   };
   const curv = curvature(fn);
   const attrib = (x, z, y, out) => {
-    out[0] = sstep(0.15, 0.6, forestMask(x, z));
-    out[1] = slipMask(x, z);
+    // forest floor + the shaded bank under the tree line (dark litter and moss, not a pale grass strip at the forest foot)
+    const v = z - axisZ(x) - BENCH.half, bank = Math.abs(x) < 120 ? sstep(-0.4, 2.2, v) * (1 - sstep(5, 12, v)) * 0.9 : 0;
+    out[0] = Math.max(sstep(0.15, 0.6, forestMask(x, z)), bank);
+    out[1] = Math.max(slipMask(x, z), 0.9 * oldScar(x, z));
     out[2] = curv(x, z);                                                   // -1 ridge / rib .. +1 gully / hollow (resolution independent)
     out[3] = roadMask(x, z);
   };

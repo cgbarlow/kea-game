@@ -20,13 +20,14 @@ export function createForest(G, { T }) {
   const group = new Group(); group.name = 'terrain-forest';
   const far = new Group(); far.name = 'terrain-canopy';
   const low = G.quality.tier === 'low';
+  const a2c = !low;                                // MSAA on med+: alpha-to-coverage turns the cut-out edge into coverage (no crawl)
   let tris = 0, calls = 0;
 
   // materials: sooty-black beech bark (baked rock texture, fine scale) + moss in vertex colour; small-leaf sprays
   const bark = makeMaterial('rock', { tint: 0x8c857c, scale: 1.2, rough: 1.1, weather: { preset: 'prop', snow: 0.2, wet: 0.6 } });
   bark.vertexColors = true; bark.name = 'beechBark';
   const leafTex = beechLeafTexture({ size: 256, seed: 7 });
-  const leaves = new MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, side: DoubleSide, vertexColors: true, roughness: 0.8, color: new Color(0.6, 0.66, 0.58) });
+  const leaves = new MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, alphaToCoverage: a2c, side: DoubleSide, vertexColors: true, roughness: 0.8, color: new Color(0.6, 0.66, 0.58) });
   leaves.name = 'beechLeaves'; leaves.userData.weather = { preset: 'prop', snow: 0.22, wet: 0.5, beads: 0 };
   foliagePatch(leaves, { trans: 0.18 });
 
@@ -44,7 +45,7 @@ export function createForest(G, { T }) {
   const pa = [], pb = [];
   for (let i = 0; i < pts.length; i += 2) ((i * 0.618034) % 1 < 0.58 ? pa : pb).push(pts[i], pts[i + 1]);
   const common = { heightAt: T.heightAt, normalAt: T.normalAt, sink: 0.35, align: 0.06, fade: [120, 180], cell: 90,
-    tint: { color: 0xffffff, h: 0.025, s: 0.08, l: 0.09 }, sway: { amp: 0.03, freq: 1.1, power: 1.6, height: 14 } };
+    tint: { color: 0xffffff, h: 0.025, s: 0.08, l: 0.09 }, sway: { amp: 0.018, freq: 0.8, power: 1.8, height: 14 } };   // slow crown sway only: leaf flutter crawled under alpha cut-outs
   const sA = scatter(G, { ...common, parts: [{ geo: A.trunk, material: bark }, { geo: A.leaves, material: leaves }], points: new Float32Array(pa), scale: [0.8, 1.2], scaleY: [0.9, 1.15], seed: SEED + 2 });
   const sB = scatter(G, { ...common, parts: [{ geo: B.trunk, material: bark }, { geo: B.leaves, material: leaves }], points: new Float32Array(pb), scale: [0.75, 1.25], scaleY: [0.85, 1.2], seed: SEED + 3 });
   const triA = A.trunk.index.count / 3 + A.leaves.index.count / 3, triB = B.trunk.index.count / 3 + B.leaves.index.count / 3;
@@ -52,7 +53,7 @@ export function createForest(G, { T }) {
   group.add(sA.group, sB.group);
 
   // edge shrubs: young beech + coprosma along the forest margin and in gaps (light-hungry edge growth)
-  const shrubMat = new MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, side: DoubleSide, vertexColors: true, roughness: 0.8, color: new Color(0.95, 0.98, 0.85) });
+  const shrubMat = new MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, alphaToCoverage: a2c, side: DoubleSide, vertexColors: true, roughness: 0.8, color: new Color(0.95, 0.98, 0.85) });
   shrubMat.name = 'edgeShrub'; shrubMat.userData.weather = { preset: 'prop', snow: 0.25, wet: 0.5, beads: 0 };
   foliagePatch(shrubMat, { trans: 0.3 });
   const shrubGeo = bushGeo({ seed: 4, radius: 1.5, height: 2.4, cards: 72, leafSize: 0.95 });
@@ -62,8 +63,8 @@ export function createForest(G, { T }) {
     return rng() < (1 - sstep(2, 14, v)) * 0.8 + 0.3;
   } });
   const sS = scatter(G, { parts: [{ geo: shrubGeo, material: shrubMat }], points: sp, heightAt: T.heightAt, normalAt: T.normalAt,
-    scale: [0.55, 1.3], align: 0.2, sink: 0.12, fade: [70, 110], cell: 90, shadow: false, seed: SEED + 6,
-    tint: { color: 0xffffff, h: 0.03, s: 0.1, l: 0.1 }, sway: { amp: 0.05, freq: 1.6, power: 1.5, height: 1.6, flutter: 0.01 } });
+    scale: [0.55, 1.3], align: 0.2, sink: 0.12, fade: [55, 95], cell: 90, shadow: false, seed: SEED + 6,
+    tint: { color: 0xffffff, h: 0.03, s: 0.1, l: 0.1 }, sway: { amp: 0.025, freq: 1.1, power: 1.5, height: 1.6, flutter: 0.002 } });
   tris += sS.count * shrubGeo.index.count / 3; calls += sS.cells.length;
   group.add(sS.group);
 
