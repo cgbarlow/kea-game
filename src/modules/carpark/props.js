@@ -135,18 +135,21 @@ function bins(k, dec, solid, rng) {
   dec.add('binR', stencilCanvas({ text: 'RUBBISH', h: 0.07, ppm: 700, color: 'rgba(226,222,206,1)', wear: 0.4 }));
   for (const [x, z, ry] of [[-19.2, -11.2, 0.1], [4.4, -12.3, -0.05], [24.2, 13.6, Math.PI + 0.1]]) {
     k.push(x, 0, z, ry);
-    k.box(0.9, 0.08, 0.86, 'concrete', { at: [0, 0.04, 0], r: 0.02, color: 0xa29e95 });
-    k.box(0.62, 0.92, 0.6, 'paint', { at: [0, 0.08 + 0.46, 0], r: 0.025, color: 0x2f4a3a });
-    k.box(0.66, 0.05, 0.66, 'paint', { at: [0, 1.04, -0.01], rot: [0.1, 0, 0], r: 0.02, color: 0x2c4636 });                  // lid
-    k.box(0.68, 0.06, 0.05, 'steel', { at: [0, 1.0, 0.31], r: 0.01 });                                                  // hinge bar (back)
-    k.bar([-0.18, 1.0, -0.36], [0.18, 1.0, -0.36], 0.025, 0.025, 'steel', { r: 0.008 });                             // pull handle
-    for (const s of [-1, 1]) k.box(0.02, 0.06, 0.05, 'steel', { at: [s * 0.18, 1.02, -0.345], r: 0.005 });
-    k.box(0.06, 0.12, 0.03, 'steel', { at: [0.24, 0.92, -0.31], r: 0.006 });                                         // spring latch
+    k.box(0.84, 0.05, 0.82, 'concrete', { at: [0, 0.025, 0], r: 0.015, color: 0x9e9a91 });                         // pad, flush
+    k.box(0.62, 0.92, 0.6, 'paint', { at: [0, 0.05 + 0.46, 0], r: 0.03, color: 0x2f4a3a });                         // body
+    k.box(0.64, 0.06, 0.62, 'paint', { at: [0, 0.04, 0], r: 0.02, color: 0x24382c });                                // plinth band
+    k.box(0.66, 0.045, 0.66, 'paint', { at: [0, 0.995, -0.01], r: 0.012, color: 0x2a4434 });                         // lid (shut, flush)
+    k.box(0.6, 0.06, 0.02, 'paint', { at: [0, 0.96, -0.335], r: 0.006, color: 0x2a4434 });                           // lid front lip
+    for (const s of [-0.22, 0, 0.22]) k.cyl(0.018, 0.12, 'steel', { at: [s, 0.99, 0.32], rot: [0, 0, Math.PI / 2], seg: 10 }); // hinge knuckles
+    k.cyl(0.008, 0.6, 'steel', { at: [0, 0.99, 0.32], rot: [0, 0, Math.PI / 2], seg: 6 });                          // hinge pin
+    k.bar([-0.18, 0.94, -0.37], [0.18, 0.94, -0.37], 0.025, 0.025, 'steel', { r: 0.008 });                           // pull handle
+    for (const s of [-1, 1]) k.box(0.02, 0.05, 0.05, 'steel', { at: [s * 0.18, 0.95, -0.35], r: 0.005 });
+    k.box(0.06, 0.12, 0.03, 'steel', { at: [0.24, 0.88, -0.31], r: 0.006 });                                         // spring latch
     k.box(0.5, 0.06, 0.02, 'steel', { at: [0, 0.15, -0.305], r: 0.006 });                                            // kick plate
-    for (const s of [-1, 1]) for (const zz of [-1, 1]) k.cyl(0.012, 0.03, 'steel', { at: [s * 0.27, 0.095, zz * 0.26], seg: 6 });
+    for (const s of [-1, 1]) for (const zz of [-1, 1]) k.cyl(0.012, 0.03, 'steel', { at: [s * 0.27, 0.06, zz * 0.26], seg: 6 });
     k.pop();
     const c = Math.cos(ry), s = Math.sin(ry), fx = -0.303; // front face (local -Z)
-    dec.place('bin', 0.44, 0.29, [x + fx * s, 0.68, z + fx * c], [0, ry + Math.PI, 0], 'sign');
+    dec.place('bin', 0.44, 0.29, [x + fx * s, 0.64, z + fx * c], [0, ry + Math.PI, 0], 'sign');
     dec.place('binR', 0.42, null, [x + fx * s, 0.4, z + fx * c], [0, ry + Math.PI, 0], 'sign');
     solid(x, 0, z, 0.7, 1.1, 0.7);
   }

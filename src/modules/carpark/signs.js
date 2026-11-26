@@ -4,26 +4,26 @@
 import { signCanvas } from '../../cookbook/decals/canvas-text.js';
 import { keaDiamondCanvas } from './canvases.js';
 
-const GREEN = '#1f4a37', CREAM = '#efe8d4', YELLOW = '#d9a81c', BLACK = '#16181a', RED = '#9a1e14', BLUE = '#24467a';
+const GREEN = '#1f4a37', CREAM = '#efe8d4', DOCY = '#f2c21b', YELLOW = '#d9a81c', BLACK = '#16181a', RED = '#9a1e14', BLUE = '#24467a';
 
 // [name, canvas opts, plate centre, rotY (plate faces +Z rotated), width m, support kind]
 const SIGNS = [
-  ['kea', { w: 1.5, h: 1.0, bg: GREEN, fg: CREAM, border: CREAM, rivets: false, lines: [
+  ['kea', { w: 2.2, h: 1.4, bg: GREEN, fg: DOCY, border: DOCY, rivets: false, lines: [
     { text: 'DO NOT FEED THE KEA', size: 0.2 }, { text: 'They are not hungry.', size: 0.11 }, { text: 'They are curious. This is worse.', size: 0.1 },
     { text: 'Fine: $400 (payable by you, not the kea)', size: 0.07 }] },
-    [-6, 1.75, -11.5], 0.25, 1.5, 'doc'],
+    [-6, 1.9, -11.5], 0.25, 2.2, 'doc'],
   ['closed', { w: 2.4, h: 1.2, bg: CREAM, fg: BLACK, border: RED, borderW: 0.03, stripes: true, lines: [
     { text: 'SH73 CLOSED', size: 0.24, color: RED }, { text: 'Estimated reopening: when it reopens', size: 0.1 },
     { text: 'Updates will be posted here. This is the update.', size: 0.07 }] },
     [28.5, 2.0, -14.6], -1.2, 2.4, 'road2'],
-  ['quake', { w: 1.6, h: 1.1, bg: YELLOW, fg: BLACK, border: BLACK, lines: [
+  ['quake', { w: 2.0, h: 1.36, bg: YELLOW, fg: BLACK, border: BLACK, lines: [
     { text: 'AFTERSHOCK SEASON', size: 0.17 }, { text: 'IS NOW OPEN', size: 0.14 }, { text: 'Drop. Cover. Hold. In that order.', size: 0.09 },
     { text: 'Picnic tables are cover. Campervans are not.', size: 0.07 }] },
-    [14, 1.75, -11.5], -0.2, 1.6, 'doc'],
-  ['possum', { w: 1.4, h: 0.9, bg: CREAM, fg: BLACK, border: GREEN, rivets: false, lines: [
-    { text: 'POSSUM CONTROL', size: 0.18, color: GREEN }, { text: 'IN PROGRESS', size: 0.13 }, { text: 'Please do not assist the possums.', size: 0.09 },
+    [14, 1.85, -11.5], -0.2, 2.0, 'doc'],
+  ['possum', { w: 1.9, h: 1.2, bg: GREEN, fg: CREAM, border: DOCY, rivets: false, lines: [
+    { text: 'POSSUM CONTROL', size: 0.18, color: DOCY }, { text: 'IN PROGRESS', size: 0.13 }, { text: 'Please do not assist the possums.', size: 0.09 },
     { text: 'They have had enough help.', size: 0.08 }] },
-    [0, 1.4, 17.0], Math.PI, 1.4, 'doc'],
+    [0, 1.55, 17.0], Math.PI, 1.9, 'doc'],
   ['parking', { w: 1.2, h: 0.9, bg: BLUE, fg: CREAM, border: CREAM, lines: [
     { text: 'P', size: 0.36 }, { text: 'CAMPERVANS', size: 0.12 }, { text: 'Max stay: until further notice', size: 0.075 }] },
     [-20, 2.1, 0.5], Math.PI / 2, 1.2, 'road2'],
@@ -31,9 +31,14 @@ const SIGNS = [
     { text: 'KEEP LEFT', size: 0.22, color: RED }, { text: 'Drive on the left in New Zealand.', size: 0.095 },
     { text: '(When the road reopens.)', size: 0.09 }, { text: '(It has not.)', size: 0.08 }] },
     [9.6, 1.85, -15.2], 0.0, 1.3, 'road2'],
-  ['noCamp', { w: 1.1, h: 0.8, bg: CREAM, fg: BLACK, border: GREEN, rivets: false, lines: [
-    { text: 'NO CAMPING', size: 0.2, color: GREEN }, { text: 'Unless stranded.', size: 0.11 }, { text: 'Then: camping.', size: 0.11 }] },
-    [26.5, 1.45, 16.7], Math.PI, 1.1, 'doc'],
+  ['noCamp', { w: 1.5, h: 1.1, bg: GREEN, fg: CREAM, border: DOCY, rivets: false, lines: [
+    { text: 'NO CAMPING', size: 0.2, color: DOCY }, { text: 'Unless stranded.', size: 0.11 }, { text: 'Then: camping.', size: 0.11 }] },
+    [26.5, 1.6, 16.7], Math.PI, 1.5, 'doc'],
+  ['stay', { w: 2.4, h: 1.5, bg: GREEN, fg: CREAM, border: DOCY, rivets: false, lines: [
+    { text: 'PASS CAR PARK', size: 0.17, color: DOCY }, { text: 'Stranded visitors: please remain stranded', size: 0.075 },
+    { text: 'in an orderly fashion.', size: 0.075 }, { text: 'Protect the campervans. Blow, do not throw.', size: 0.07 },
+    { text: 'Department of Pass Conservation', size: 0.06, color: DOCY }] },
+    [-28.9, 2.0, 1.75], Math.PI / 2, 2.4, 'doc'],
   ['keaPlate', { w: 0.8, h: 0.36, bg: YELLOW, fg: BLACK, border: BLACK, lines: [
     { text: 'NEXT 400 m', size: 0.36 }, { text: '(They know.)', size: 0.24 }] },
     [-17, 1.55, -15.25], 0.45, 0.8, 'none'],

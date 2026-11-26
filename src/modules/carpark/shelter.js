@@ -19,6 +19,14 @@ export function buildShelter(G, { k, ik, dec, solid, rng }) {
   // ---- floor slab + front apron edge
   ik.box(S.w + 0.12, 0.07, S.d + 0.12, 'concrete', { at: [sx, 0.035, sz], r: 0.02, color: 0xb0aca2 });
 
+  // ---- exterior foundation: 150 mm concrete plinth under the three walls + a painted skirting board over it
+  for (const [x, z, w, d] of [[sx, zN - 0.02, S.w + 0.24, 0.3], [sx, zS + 0.02, S.w + 0.24, 0.3], [xW - 0.02, sz, 0.3, S.d + 0.04]]) {
+    k.box(w, 0.15, d, 'concrete', { at: [x, 0.075, z], r: 0.02, color: 0xa8a49a });
+  }
+  for (const [x, z, w, d] of [[sx, zN - 0.07, S.w + 0.12, 0.03], [sx, zS + 0.07, S.w + 0.12, 0.03], [xW - 0.07, sz, 0.03, S.d + 0.12]]) {
+    k.box(w, 0.14, d, 'paint', { at: [x, 0.21, z], r: 0.006, color: 0x3a4a40 });
+  }
+
   // ---- walls (exterior skin into k, interior back faces + framing into ik)
   const wall = (x, z, ry, len, h0, h1) => {
     k.push(x, 0, z, ry); ik.push(x, 0, z, ry);
@@ -117,10 +125,10 @@ export function buildShelter(G, { k, ik, dec, solid, rng }) {
   dec.place('switch', 0.2, 0.1, [xin + 0.004, 1.58, swZ], [0, Math.PI / 2, 0], 'interior');
 
   // ---- name board over the opening (outside)
-  dec.add('shelterName', signCanvas({ w: 2.4, h: 0.3, ppm: 300, bg: '#1f4a37', fg: '#e6d9a8', border: '#e6d9a8', rivets: false, wear: 0.35, lines: [
-    { text: 'PASS VISITOR SHELTER   ·   EST. 1987   ·   RE-EST. 2026', size: 0.5 }] }));
-  k.box(0.03, 0.34, 2.46, 'paint', { at: [xE + 0.095, hFront - 0.13, sz], r: 0.006, color: 0x2a4a38 });
-  dec.place('shelterName', 2.4, 0.3, [xE + 0.112, hFront - 0.13, sz], [0, Math.PI / 2, 0], 'sign');
+  dec.add('shelterName', signCanvas({ w: 3.4, h: 0.46, ppm: 260, bg: '#1f4a37', fg: '#f2c21b', border: '#f2c21b', rivets: false, wear: 0.3, lines: [
+    { text: 'PASS VISITOR SHELTER', size: 0.5 }, { text: 'EST. 1987  ·  RE-EST. 2026  ·  RE-RE-EST. PENDING', size: 0.2, color: '#efe8d4' }] }));
+  k.box(0.035, 0.5, 3.46, 'paint', { at: [xE + 0.1, hFront - 0.16, sz], r: 0.008, color: 0x2a4a38 });
+  dec.place('shelterName', 3.4, 0.46, [xE + 0.12, hFront - 0.16, sz], [0, Math.PI / 2, 0], 'sign');
 
   return {
     box: { min: [xW, 0, zN], max: [xE, hFront, zS] },

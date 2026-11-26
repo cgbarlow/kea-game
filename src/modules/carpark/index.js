@@ -16,6 +16,7 @@ import { buildSurface } from './surface.js';
 import { buildShelter } from './shelter.js';
 import { buildProps } from './props.js';
 import { buildSigns } from './signs.js';
+import { buildDressing } from './dressing.js';
 
 export function create(G, { mats }) {
   const root = new Group(); root.name = 'carpark';
@@ -36,6 +37,7 @@ export function create(G, { mats }) {
     plastic: makeMaterial('plastic', { tint: 0xffffff }),
     sarking: makeMaterial('wood_planks', { tint: 0xd8cbb0, weather: 'sheltered' }),
     iplastic: makeMaterial('plastic', { tint: 0xffffff, weather: 'sheltered' }),
+    rock: makeMaterial('rock', { tint: 0xffffff, triplanar: true }),
     lensA: mats.amber.clone(), lensB: mats.amber.clone(),
   };
   for (const m of Object.values(own)) m.vertexColors = true;
@@ -46,12 +48,13 @@ export function create(G, { mats }) {
   const sh = buildShelter(G, { k, ik, dec, solid, rng });
   const pr = buildProps(G, { k, dec, solid, rng });
   const signs = buildSigns(G, { k, dec, solid, rng });
+  buildDressing(G, { k, dec, gdec, solid, rng });
 
   k.bakeAO({ ground: 0, samples: 10, strength: 0.55 }); k.grime({ base: 0, foot: 0.22, streak: 0.18, dirt: [0.76, 0.7, 0.62] });
   ik.bakeAO({ ground: 0.07, samples: 10, radius: 0.3, strength: 0.55 }); ik.grime({ base: 0.07, foot: 0.2, streak: 0.08, down: 0.15, dirt: [0.8, 0.75, 0.68] });
   const ext = k.build({
     concrete: mats.concrete, paint: mats.paint, steel: mats.steel, wood: mats.wood, rubber: mats.rubber,
-    plastic: own.plastic, lensA: own.lensA, lensB: own.lensB, default: mats.concrete,
+    plastic: own.plastic, rock: own.rock, lensA: own.lensA, lensB: own.lensB, default: mats.concrete,
   });
   ext.name = 'carpark:exterior'; root.add(ext);
 
@@ -101,4 +104,12 @@ export function create(G, { mats }) {
   };
 }
 
-export function showcase() { return { cam: [-14, 2.0, -12], target: [-24, 1.4, -6] }; }
+// north across bay 1 with the low sun to the left: shelter flank, bays + wheel stops, the coned-off fault, the kea
+// sign and the snowy range. Scenery shot: the viewmodel, its airflow puffs and the air motes are hidden.
+export function showcase(G) {
+  G.on?.('ready', () => {
+    const bl = G.mods?.blower; if (bl) { bl.enabled = false; bl.forceFire = false; if (bl.overlay?.scene) bl.overlay.scene.visible = false; }
+    const d = G.mods?.weather?.dust?.mesh; if (d) d.visible = false;
+  });
+  return { cam: [-20, 1.7, 6], target: [-12, 1.3, -10] };
+}
