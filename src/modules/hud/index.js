@@ -48,7 +48,11 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   // showcase (?show=hud): a frozen, representative mid-shift state
   const show = G.params.get('show') === 'hud';
   const demo = show ? { timeLeft: 257, shiftLength: 420, strikes: 1, phase: 'alert', alertT: 1.2, compliant: false, coverOk: false,
-    ints: [0.91, 0.42, 0.68], heat: 0.86, turbo: true, firing: true, overheated: false } : null;
+    ints: [0.91, 0.42, 0.68], heat: 0.86, turbo: false, firing: false, overheated: false } : null;
+  // engine idling between bursts: ?shot forces the jet on from the first frame, and its buzz springs + puffs would
+  // still be settling when the (slow, dt-clamped) capture fires; switch it off before any frame runs
+  if (show && blower) blower.forceFire = false;
+  if (show) hud.classList.add('frozen');
 
   // ---- toast feed: 4 pooled slips, newest at the bottom, time-stamped in shift time ----
   const toastPool = [];
@@ -128,6 +132,8 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
     G.on('ready', () => {
       ui.noLock = true;
       window.__setCam?.(SHOW_CAM, SHOW_TARGET);
+      // this showcase IS the DOM layer: ?shot=1 (html.shot hides every .ui) must not blank it
+      document.documentElement.classList.remove('shot');
       const scr = G.params.get('hudscreen') || 'hud';
       if (scr === 'title') { ui.setState('title'); return; }
       ui.setState('playing'); G.paused = true;
@@ -149,7 +155,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   // ---- per-frame (guarded writes only) ----
   H.update = (dt) => {
     ui.update(dt);
-    for (const s of toastPool) if (s.on) { s.t -= dt; if (s.t <= 0) { s.on = false; s.n.classList.remove('on'); } }
+    if (!demo) for (const s of toastPool) if (s.on) { s.t -= dt; if (s.t <= 0) { s.on = false; s.n.classList.remove('on'); } }
     if (ui.state !== 'playing' || !game) return;
     const S = demo || game;
 
