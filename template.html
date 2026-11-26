@@ -57,6 +57,10 @@
           <label><span>Rendering quality</span>
             <select name="quality"><option value="auto">Auto (recommended by IT)</option><option value="low">Low</option><option value="med">Medium</option><option value="high">High</option><option value="ultra">Ultra (not budgeted)</option></select>
           </label>
+          <label><span>Render resolution</span>
+            <select name="res"></select>
+            <small class="res-note" data-res-note></small>
+          </label>
           <label><span>Mouse sensitivity <output data-out="sens"></output></span><input name="sens" type="range" min="0.3" max="3" step="0.05" value="1"></label>
           <label><span>Field of view <output data-out="fov"></output></span><input name="fov" type="range" min="60" max="100" step="1" value="74"></label>
           <label><span>Volume <output data-out="volume"></output></span><input name="volume" type="range" min="0" max="1" step="0.01" value="0.8"></label>

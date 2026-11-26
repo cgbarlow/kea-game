@@ -16,6 +16,16 @@ export const MODES = [
     note: 'Pending risk assessment. The kea have requested representation.' },
 ];
 
+// Render resolution (settings menu), data-driven like MODES. 'auto' = dynamic resolution (engine/quality.js); a number
+// pins the render scale relative to the tier's pixel budget and switches dynres off. ?dynres= / ?scale= override it.
+export const RESOLUTIONS = [
+  { id: 'auto', label: 'Auto (dynamic)', note: 'Resolution managed by IT. It will move. Do not report it.' },
+  { id: '1', label: '100%', note: 'Full resolution. Your hardware has been told to cope.' },
+  { id: '0.85', label: '85%', note: 'Marginally fewer pixels. Nobody will notice; someone will.' },
+  { id: '0.7', label: '70%', note: 'Lower resolution approved for underpowered hardware.' },
+  { id: '0.5', label: '50%', note: 'Emergency resolution. Approved under protest by the Department.' },
+];
+
 const KEY = 'dnftk.settings.v1';
 const SCREENS = ['title', 'pause', 'settings', 'end'];
 
@@ -25,7 +35,7 @@ export function create(G, { input, player, quality, path }) {
   for (const s of SCREENS) el[s] = $('#' + s);
   const binds = {}; document.querySelectorAll('[data-bind]').forEach((n) => { binds[n.dataset.bind] = n; });
   const shot = !!G.params.get('shot');
-  const settings = { quality: 'auto', sens: 1, fov: G.camera.fov, volume: 0.8, invertY: false };
+  const settings = { quality: 'auto', res: 'auto', sens: 1, fov: G.camera.fov, volume: 0.8, invertY: false };
   if (!shot) { try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* blocked storage */ } }
   const U = { state: 'boot', settings, modes: MODES };
   let back = 'title';
@@ -33,6 +43,10 @@ export function create(G, { input, player, quality, path }) {
   // ---- settings ----
   const form = el.settings?.querySelector('form');
   const outs = {}; el.settings?.querySelectorAll('[data-out]').forEach((n) => { outs[n.dataset.out] = n; });
+  const resSel = form?.elements?.res;
+  if (resSel && !resSel.options.length) for (const r of RESOLUTIONS) resSel.add(new Option(r.label, r.id));
+  if (!RESOLUTIONS.some((r) => r.id === String(settings.res))) settings.res = 'auto';
+  const resNote = el.settings?.querySelector('[data-res-note]');
   const fmt = { sens: (v) => (+v).toFixed(2) + '×', fov: (v) => Math.round(v) + '°', volume: (v) => Math.round(v * 100) + '%' };
   function apply(persist) {
     input.sens = 0.0022 * settings.sens; input.invertY = !!settings.invertY;
@@ -40,6 +54,9 @@ export function create(G, { input, player, quality, path }) {
     if (settings.quality !== 'auto' && quality && settings.quality !== G.quality.tier) { G.quality.pinned = true; quality.setTier(settings.quality, 'settings'); }
     if (settings.quality === 'auto' && G.quality.pinned && !G.params.get('q')) G.quality.pinned = false;
     G.mods?.audio?.setVolume?.(+settings.volume);
+    const r = RESOLUTIONS.find((x) => x.id === String(settings.res)) || RESOLUTIONS[0];
+    const taken = quality?.setManualScale ? quality.setManualScale(r.id === 'auto' ? null : +r.id) : false;
+    if (resNote) resNote.textContent = taken ? r.note : 'Resolution set by a launch parameter. Take it up with whoever typed it.';
     for (const k in outs) outs[k].textContent = fmt[k] ? fmt[k](settings[k]) : String(settings[k]);
     if (persist) { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ } }
   }

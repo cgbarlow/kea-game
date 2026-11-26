@@ -120,6 +120,7 @@ html.shot .hud-play, html.shot .hud-play * { animation: none !important; transit
 .settings-grid label { display: grid; gap: 7px; color: var(--cream-dim); font: 600 13px/1 var(--cond); letter-spacing: var(--track); text-transform: uppercase; }
 .settings-grid label > span { display: flex; justify-content: space-between; }
 .settings-grid output { color: var(--cream); font-family: var(--mono); font-size: 12px; letter-spacing: 0; }
+.settings-grid .res-note { color: var(--cream-dim); font: 500 12px/1.3 var(--mono); letter-spacing: 0; text-transform: none; opacity: 0.85; }
 .settings-grid label.check { display: flex; align-items: center; gap: 10px; }
 select, input[type=range], input[type=checkbox] { accent-color: var(--orange); }
 input[type=range] { width: 100%; }
