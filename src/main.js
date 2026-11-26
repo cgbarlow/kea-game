@@ -151,6 +151,11 @@ async function main() {
     const post = createPost(G, { overlay: blower.overlay });
     // look-director post knobs (ART.grade covers the grade; these are the post-only ones)
     Object.assign(post.params, ART.post || {});
+    // The blower overlay is drawn into the same MSAA scene target right after the world (depthRange 0..0.05) with
+    // an unjittered camera: there is no TAA, so no sub-pixel jitter and no history. Under ?shot also force the
+    // only reprojecting pass (camera motion blur) off, so a later ART.post tweak can never smear or shimmer the
+    // view model in frozen-camera captures. html.shot hides only menus; the in-shift HUD (.hud-play) stays (ui.css).
+    if (G.params.get('shot')) post.params.motionBlur = 0;
     // a camera cut (harness/pose/teleport) snaps the exposure: no adaptation drift under a frozen camera
     G.on('camset', () => post.resetAdaptation());
     return post;
