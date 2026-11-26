@@ -2,7 +2,7 @@
 // ground stencils, raised pavement markers, edge marker posts, asphalt patch repairs and the quake cracks.
 // Geometry goes into the exterior Kit `k`; paint/cracks/patches are decals in the ground batch (`dec`).
 import { LAYOUT as L } from '../../contracts.js';
-import { stencilCanvas } from '../../cookbook/decals/canvas-text.js';
+import { roadTextCanvas } from './canvases-ground.js';
 import { paintLineCanvas, crackCanvas, patchCanvas } from './canvases.js';
 
 const LINE_VARIANTS = 5, LINE_LEN = 6;
@@ -18,9 +18,10 @@ export function buildSurface(G, { k, dec, rng }) {
   dec.add('crackS0', crackCanvas(5, 0.5, { seed: 303, sealed: true, width: 0.012 }));
   dec.add('crackS1', crackCanvas(5, 0.5, { seed: 317, sealed: true, width: 0.012 }));
   for (let i = 0; i < 3; i++) dec.add('patch' + i, patchCanvas(2 + i * 0.8, 1.2 + i * 0.5, { seed: 41 + i }));
-  dec.add('stCamper', stencilCanvas({ text: 'CAMPERVANS', h: 0.4, ppm: 150, color: 'rgba(232,226,210,1)', wear: 0.55 }));
-  dec.add('stKeep', stencilCanvas({ text: 'KEEP LEFT', h: 0.5, ppm: 130, color: 'rgba(232,226,210,1)', wear: 0.5 }));
-  dec.add('stNZ', stencilCanvas({ text: 'NZ', h: 0.5, ppm: 130, color: 'rgba(232,226,210,1)', wear: 0.5 }));
+  // road lettering: full condensed glyphs, elongated 1.6× along the reading axis, gentle erosion (never a lost stroke)
+  dec.add('stCamper', roadTextCanvas({ text: 'CAMPERVANS', h: 0.6, ppm: 150, stretch: 1.6, wear: 0.2 }));
+  dec.add('stKeep', roadTextCanvas({ text: 'KEEP LEFT', h: 0.9, ppm: 110, stretch: 1.8, wear: 0.22 }));
+  dec.add('stNZ', roadTextCanvas({ text: 'NZ', h: 0.9, ppm: 110, stretch: 1.8, wear: 0.22 }));
 
   // ---- painted lines (decals, 3-6 mm above the surface, chained 6 m segments with random wear variants)
   let vi = 0;
@@ -44,10 +45,10 @@ export function buildSurface(G, { k, dec, rng }) {
   // car park: 9 campervan bays 4 m wide, lines 8.5 m long, a rear line and the aisle edge
   for (let i = 0; i <= 9; i++) { const x = -18 + i * 4; line(x, -0.5, x, 8.5); }
   line(-18, 8.5, 18, 8.5);
-  for (let i = 0; i < 9; i++) if (i % 2 === 0) dec.flat('stCamper', 2.4, null, -16 + i * 4, 0.005, -0.15, Math.PI);
+  for (let i = 0; i < 9; i++) if (i % 2 === 0) dec.flat('stCamper', 2.9, null, -16 + i * 4, 0.005, -0.15, Math.PI);
   // KEEP LEFT painted on the exit lane, for visitors from countries that drive on the other side
-  dec.flat('stKeep', 2.6, null, 2, 0.005, -17.9, Math.PI, 'ground');
-  dec.flat('stNZ', 0.9, null, 2, 0.005, -16.9, Math.PI, 'ground');
+  dec.flat('stKeep', 3.0, null, 2, 0.005, -17.7, Math.PI, 'ground');
+  dec.flat('stNZ', 0.9, null, 2, 0.005, -16.5, Math.PI, 'ground');
   // raised reflective pavement markers on the centre line, every 10 m in the gaps
   for (let x = -85; x < 88; x += 10) k.box(0.1, 0.018, 0.1, 'paint', { at: [x + 1.5 + 5, 0.009, rd.z], r: 0.006, color: 0xbdb8aa, step: 1 });
 

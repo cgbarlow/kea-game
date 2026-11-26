@@ -10,6 +10,21 @@ export const tint = (rng, base, a = 0.08) => {
   return ((r << 16) | (gg << 8) | b) >>> 0;
 };
 
+// Per-board variation on a just-added Kit geometry (world space): random UV offset (+ a mirrored grain on half the
+// boards) so the texture's grain and knots never line up board to board, and a vertex-colour grime gradient:
+// darker toward the floor (splash + boots) and toward the corners (`corner` 0..1 from the caller).
+export function varyBoard(geo, rng, { floor = 0, foot = 0.9, dark = 0.3, corner = 0 } = {}) {
+  const uv = geo.attributes.uv.array, du = rng() * 7.3, dv = rng() * 5.1, flip = rng() < 0.5 ? -1 : 1;
+  for (let i = 0; i < uv.length; i += 2) { uv[i] = uv[i] * flip + du; uv[i + 1] += dv; }
+  const P = geo.attributes.position.array, C = geo.attributes.color.array;
+  const base = 1 - corner * 0.22;
+  for (let i = 0; i < C.length; i += 3) {
+    const t = Math.min(1, Math.max(0, (P[i + 1] - floor) / foot)), f = base * (1 - dark * (1 - t * t * (3 - 2 * t)));
+    C[i] *= f; C[i + 1] *= f; C[i + 2] *= f * 0.97;
+  }
+  return geo;
+}
+
 // Exterior board-and-batten skin (+ optional interior: back face of the boards, studs, plates, dwangs).
 //  o: { len, h0, h1, t, pitch, colour, rng, out: Kit, outKey, inn: Kit, innKey, gaps: [[x0,x1]] (openings, e.g. a door) }
 export function bbWall(o) {
@@ -19,14 +34,15 @@ export function bbWall(o) {
   const n = Math.round(len / pitch), P = len / n;
   for (let i = 0; i < n; i++) {
     const cx = (i + 0.5) * P; if (inGap(cx)) continue;
-    const bh = hAt(cx) - y0, c = tint(rng, colour, 0.09);
-    out.box(bh, P - 0.003, t, outKey, { at: [cx, y0 + bh / 2, -t / 2], rot: [0, 0, Math.PI / 2], r: 0.003, color: c, step: 0.9 });
-    if (inn) inn.box(bh, P - 0.002, 0.01, innKey, { at: [cx, y0 + bh / 2, -t - 0.005], rot: [0, 0, Math.PI / 2], r: 0.002, color: tint(rng, 0xe2d2b0, 0.08), step: 0.9 });
+    const bh = hAt(cx) - y0, c = tint(rng, rng() < 0.18 ? 0x9a9488 : colour, 0.14);   // a few boards greyed by the weather
+    const corner = Math.max(0, 1 - Math.min(cx, len - cx) / 0.5);
+    varyBoard(out.box(bh, P - 0.003, t, outKey, { at: [cx, y0 + bh / 2, -t / 2], rot: [0, 0, Math.PI / 2], r: 0.003, color: c, step: 0.9 }), rng, { floor: y0, dark: 0.25, corner });
+    if (inn) varyBoard(inn.box(bh, P - 0.002, 0.01, innKey, { at: [cx, y0 + bh / 2, -t - 0.005], rot: [0, 0, Math.PI / 2], r: 0.002, color: tint(rng, rng() < 0.25 ? 0xcab890 : 0xe2d2b0, 0.13), step: 0.9 }), rng, { floor: y0, foot: 1.1, dark: 0.38, corner });
   }
   for (let i = 1; i < n; i++) { // battens over every joint
     const x = i * P; if (inGap(x - 0.03) || inGap(x + 0.03)) continue;
     const bh = hAt(x) - y0 - 0.02;
-    out.box(bh, 0.05, 0.019, outKey, { at: [x, y0 + bh / 2 + 0.01, 0.0095], rot: [0, 0, Math.PI / 2], r: 0.004, color: tint(rng, colour, 0.06), step: 0.9 });
+    varyBoard(out.box(bh, 0.05, 0.019, outKey, { at: [x, y0 + bh / 2 + 0.01, 0.0095], rot: [0, 0, Math.PI / 2], r: 0.004, color: tint(rng, colour, 0.1), step: 0.9 }), rng, { floor: y0, dark: 0.22 });
   }
   if (inn) { // framing: studs at 600 centres, bottom plate, sloped top plate, dwangs staggered at mid height
     const zf = -t - 0.01 - 0.045;
@@ -34,10 +50,10 @@ export function bbWall(o) {
     for (let i = 0; i <= ns; i++) {
       const x = Math.min(len - 0.03, Math.max(0.03, (i * len) / ns)); if (inGap(x)) continue;
       const h = hAt(x) - y0 - 0.09;
-      inn.box(0.045, h, 0.09, innKey, { at: [x, y0 + 0.045 + h / 2, zf], r: 0.003, color: tint(rng, 0xead4a8, 0.07) });
+      varyBoard(inn.box(0.045, h, 0.09, innKey, { at: [x, y0 + 0.045 + h / 2, zf], r: 0.003, color: tint(rng, 0xead4a8, 0.1) }), rng, { floor: y0, dark: 0.3 });
       if (i < ns && !inGap(x + len / ns / 2)) {
         const dy = 1.15 + (i % 2) * 0.09, w = len / ns - 0.045;
-        inn.box(w, 0.09, 0.045, innKey, { at: [x + len / ns / 2, y0 + dy, zf + 0.0225], r: 0.003, color: tint(rng, 0xe0c8a0, 0.07) });
+        varyBoard(inn.box(w, 0.09, 0.045, innKey, { at: [x + len / ns / 2, y0 + dy, zf + 0.0225], r: 0.003, color: tint(rng, 0xe0c8a0, 0.1) }), rng, { dark: 0 });
       }
     }
     inn.box(len, 0.045, 0.09, innKey, { at: [len / 2, y0 + 0.0225, zf], r: 0.003, color: 0xc8b490 });

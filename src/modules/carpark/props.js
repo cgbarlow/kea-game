@@ -120,10 +120,10 @@ function traps(k, dec, solid, rng) {
     k.pop();
     solid(x, 0, z, 0.4, 0.36, 0.84);
     const nm = 'trapId' + i;
-    dec.add(nm, stencilCanvas({ text: 'DOC200 ' + ids[i], h: 0.05, ppm: 900, color: 'rgba(226,222,206,1)', wear: 0.35 }));
+    dec.add(nm, stencilCanvas({ text: 'DOC200 ' + ids[i], h: 0.05, ppm: 900, color: 'rgba(226,222,206,1)', wear: 0.2 }));
     const c = Math.cos(ry), s = Math.sin(ry);
     dec.place(nm, 0.5, null, [x + 0.162 * c, 0.2, z - 0.162 * s], [0, ry + Math.PI / 2, 0], 'sign');
-    dec.add(nm + 'L', stencilCanvas({ text: ids[i], h: 0.09, ppm: 600, color: 'rgba(226,222,206,1)', wear: 0.45 }));
+    dec.add(nm + 'L', stencilCanvas({ text: ids[i], h: 0.09, ppm: 600, color: 'rgba(226,222,206,1)', wear: 0.22 }));
     dec.place(nm + 'L', 0.36, null, [x, 0.354, z], [-Math.PI / 2, ry + Math.PI / 2, 0], 'sign');
   });
 }
@@ -132,7 +132,7 @@ function traps(k, dec, solid, rng) {
 function bins(k, dec, solid, rng) {
   dec.add('bin', signCanvas({ w: 0.46, h: 0.3, ppm: 500, bg: '#efe8d4', fg: '#16181a', border: '#1f4a37', wear: 0.35, lines: [
     { text: 'KEA-PROOF LID', size: 0.24, color: '#1f4a37' }, { text: 'Kea have been informed.', size: 0.13 }, { text: 'Lift. Pull. Swear. Lift.', size: 0.13 }] }));
-  dec.add('binR', stencilCanvas({ text: 'RUBBISH', h: 0.07, ppm: 700, color: 'rgba(226,222,206,1)', wear: 0.4 }));
+  dec.add('binR', stencilCanvas({ text: 'RUBBISH', h: 0.07, ppm: 700, color: 'rgba(226,222,206,1)', wear: 0.22 }));
   for (const [x, z, ry] of [[-19.2, -11.2, 0.1], [4.4, -12.3, -0.05], [24.2, 13.6, Math.PI + 0.1]]) {
     k.push(x, 0, z, ry);
     k.box(0.84, 0.05, 0.82, 'concrete', { at: [0, 0.025, 0], r: 0.015, color: 0x9e9a91 });                         // pad, flush

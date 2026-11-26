@@ -5,7 +5,7 @@
 //                           anchors: { lamps, flashers, shelterLamp, signs, cover, traps }, update, dispose }
 //   showcase(G) → { cam, target }
 // Every position comes from LAYOUT in contracts.js. Real metres, bevelled edges (geo/kit.js), merged by material:
-// ONE mesh per material key (exterior kit + interior kit) + three batched decal meshes (signs, ground, interior).
+// ONE mesh per material key (exterior kit + interior kit) + four batched decal meshes (signs, ground, wet, interior).
 import { Box3, Vector3, Group, Mesh, PlaneGeometry } from 'three';
 import { Kit } from '../../cookbook/geo/kit.js';
 import { rngFrom } from '../../cookbook/geo/noise.js';
@@ -17,6 +17,8 @@ import { buildShelter } from './shelter.js';
 import { buildProps } from './props.js';
 import { buildSigns } from './signs.js';
 import { buildDressing } from './dressing.js';
+import { buildGroundWear } from './groundwear.js';
+import { buildClosure } from './closure.js';
 
 export function create(G, { mats }) {
   const root = new Group(); root.name = 'carpark';
@@ -35,7 +37,6 @@ export function create(G, { mats }) {
   // module-owned materials (vertex colours carry tint + baked AO; finalizeMaterials adds atmos/weathering later)
   const own = {
     plastic: makeMaterial('plastic', { tint: 0xffffff }),
-    sarking: makeMaterial('wood_planks', { tint: 0xd8cbb0, weather: 'sheltered' }),
     iplastic: makeMaterial('plastic', { tint: 0xffffff, weather: 'sheltered' }),
     rock: makeMaterial('rock', { tint: 0xffffff, triplanar: true }),
     lensA: mats.amber.clone(), lensB: mats.amber.clone(),
@@ -49,6 +50,9 @@ export function create(G, { mats }) {
   const pr = buildProps(G, { k, dec, solid, rng });
   const signs = buildSigns(G, { k, dec, solid, rng });
   buildDressing(G, { k, dec, gdec, solid, rng });
+  buildGroundWear(G, { k, gdec, solid, rng });
+  const west = buildClosure(G, { k, dec, solid, rng });
+  signs.push(west.sign);
 
   k.bakeAO({ ground: 0, samples: 10, strength: 0.55 }); k.grime({ base: 0, foot: 0.22, streak: 0.18, dirt: [0.76, 0.7, 0.62] });
   ik.bakeAO({ ground: 0.07, samples: 10, radius: 0.3, strength: 0.55 }); ik.grime({ base: 0.07, foot: 0.2, streak: 0.08, down: 0.15, dirt: [0.8, 0.75, 0.68] });
@@ -63,11 +67,13 @@ export function create(G, { mats }) {
   const groundMesh = gdec.build('ground', { roughness: 0.62, noWeather: true, shadow: true });
   if (signMesh) root.add(signMesh);
   if (groundMesh) root.add(groundMesh);
+  const wetMesh = gdec.build('wet', { roughness: 0.1, noWeather: true, shadow: true });   // darker, glossier wet patches
+  if (wetMesh) { wetMesh.renderOrder = 1; root.add(wetMesh); }
 
   // shelter interior: its own materials so main.js can assign the interior probe to them alone
   const interior = ik.build({
     wood: mats.shelterWood, steel: mats.shelterSteel, concrete: mats.shelterConcrete, board: mats.board, lamp: mats.lamp,
-    sarking: own.sarking, plastic: own.iplastic, default: mats.shelterWood,
+    plastic: own.iplastic, default: mats.shelterWood,
   });
   interior.name = 'shelter:interior';
   const intDecals = dec.build('interior', { roughness: 0.55 });
@@ -84,7 +90,7 @@ export function create(G, { mats }) {
   const bounds = new Box3().setFromObject(ground);
   const anchors = {
     lamps: L.lamps.map(([x, z]) => [x + 0.3, 7.9, z]),
-    flashers: pr.flashers,
+    flashers: pr.flashers.concat(west.flashers),
     shelterLamp: sh.lamp,
     cover: L.tables.map(([x, z]) => ({ pos: [x, 0, z], r: 1.6 })).concat([{ pos: [L.shelter.x, 0, L.shelter.z], r: 2.6 }]),
     traps: L.traps.map(([x, z]) => ({ pos: [x, 0, z], mouth: [x, 0.12, z - 0.42] })),

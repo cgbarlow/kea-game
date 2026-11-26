@@ -4,8 +4,9 @@
 // and stencils into the ground decal batch `gdec`, plates into the sign batch `dec`.
 import { lathe } from '../../cookbook/geo/kit.js';
 import { rockGeo } from '../../cookbook/geo/scatter.js';
-import { signCanvas, stencilCanvas } from '../../cookbook/decals/canvas-text.js';
+import { signCanvas } from '../../cookbook/decals/canvas-text.js';
 import { tint } from './timber.js';
+import { roadTextCanvas } from './canvases-ground.js';
 
 const BAY_X0 = -18, BAY_N = 9, BAY_W = 4, BAY_Z0 = -0.5, BAY_Z1 = 8.5;
 
@@ -17,8 +18,8 @@ export function buildDressing(G, { k, dec, gdec, solid, rng }) {
   }
   for (let i = 0; i < BAY_N; i++) {
     const x = BAY_X0 + BAY_W / 2 + i * BAY_W, id = 'bay' + i;
-    gdec.add(id, stencilCanvas({ text: String(i + 1), h: 0.55, ppm: 120, color: 'rgba(232,226,210,1)', wear: 0.55 }));
-    gdec.flat(id, 0.5, null, x, 0.005, 1.0, Math.PI);
+    gdec.add(id, roadTextCanvas({ text: String(i + 1), h: 0.6, ppm: 120, stretch: 1.4, wear: 0.22 }));
+    gdec.flat(id, 0.42, null, x, 0.005, 1.0, Math.PI);
     const z = BAY_Z1 - 0.75 + (rng() - 0.5) * 0.06, ry = (rng() - 0.5) * 0.05, off = i === 5 ? 0.35 : 0;   // bay 6's stop walked
     k.push(x + off, 0, z, ry + (i === 5 ? 0.22 : 0));
     k.box(1.65, 0.11, 0.17, 'concrete', { at: [0, 0.055, 0], r: 0.025, color: tint(rng, 0xaaa69c, 0.06) });
@@ -29,7 +30,7 @@ export function buildDressing(G, { k, dec, gdec, solid, rng }) {
     k.pop();
   }
   // a joke bay, painted by someone with a stencil and time
-  gdec.add('stNoKea', stencilCanvas({ text: 'NO KEA PARKING', h: 0.32, ppm: 140, color: 'rgba(214,180,48,1)', wear: 0.45 }));
+  gdec.add('stNoKea', roadTextCanvas({ text: 'NO KEA PARKING', h: 0.42, ppm: 130, stretch: 1.3, color: 'rgba(214,180,48,1)', wear: 0.22 }));
   gdec.flat('stNoKea', 3.0, null, -16, 0.005, 4.4, Math.PI / 2);
 
   // rubble that bounced across SH73 from the slip and stopped on the apron edge

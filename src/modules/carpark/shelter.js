@@ -4,7 +4,8 @@
 // a fluoro batten on conduit. Exterior parts go into the shared exterior Kit `k` (sky-lit materials); interior
 // parts go into `ik` (the probe-lit materials main.js assigns to shelter.interior).
 import { LAYOUT as L } from '../../contracts.js';
-import { bbWall, corrugatedRoof, tint } from './timber.js';
+import { bbWall, corrugatedRoof, tint, varyBoard } from './timber.js';
+import { floorCanvas, doorMatCanvas } from './canvases-ground.js';
 import { mapBoardCanvas, noticeCanvas } from './canvases.js';
 import { signCanvas } from '../../cookbook/decals/canvas-text.js';
 
@@ -18,6 +19,14 @@ export function buildShelter(G, { k, ik, dec, solid, rng }) {
 
   // ---- floor slab + front apron edge
   ik.box(S.w + 0.12, 0.07, S.d + 0.12, 'concrete', { at: [sx, 0.035, sz], r: 0.02, color: 0xb0aca2 });
+  // floor wear: boot-traffic grime in from the opening, damp tide line along the walls, scuffs, drink rings
+  dec.add('shelterFloor', floorCanvas(S.w, S.d, { seed: 5 }));
+  dec.flat('shelterFloor', S.w - 0.02, S.d - 0.02, sx, 0.0715, sz, 0, 'interior');
+  // coir door mat at the opening (readable walking in), slightly skewed, edges curled flat by use
+  const mw = 0.9, md = 0.6, mx = xE - 0.55;
+  ik.box(md, 0.012, mw, 'plastic', { at: [mx, 0.076, sz + 0.15], rot: [0, 0.07, 0], r: 0.004, color: 0x4a3a28 });
+  dec.add('doorMat', doorMatCanvas(mw, md));
+  dec.flat('doorMat', mw - 0.02, md - 0.02, mx, 0.0825, sz + 0.15, Math.PI / 2 + 0.07, 'interior');
 
   // ---- exterior foundation: 150 mm concrete plinth under the three walls + a painted skirting board over it
   for (const [x, z, w, d] of [[sx, zN - 0.02, S.w + 0.24, 0.3], [sx, zS + 0.02, S.w + 0.24, 0.3], [xW - 0.02, sz, 0.3, S.d + 0.04]]) {
@@ -51,7 +60,13 @@ export function buildShelter(G, { k, ik, dec, solid, rng }) {
   const rafterZ = [zN + 0.03, zN + 1.0, sz, zS - 1.0, zS - 0.03];
   for (const z of rafterZ) ik.bar([rx0, ry(rx0) + 0.07, z], [rx1, ry(rx1) + 0.07, z], 0.045, 0.14, 'wood', { color: tint(rng, 0xe0c89c, 0.06), r: 0.004 });
   const sl = Math.hypot(rx1 - rx0, ry(rx1) - ry(rx0)), smx = (rx0 + rx1) / 2;
-  ik.box(sl, 0.02, S.d + 0.7, 'sarking', { at: [smx, ry(smx) + 0.15, sz], rot: [0, 0, slope], r: 0.004, color: 0xc4b498, step: 1.2 });
+  // tongue-and-groove sarking as individual 135 mm boards: each with its own tint, grain offset and knot placement
+  const sd = S.d + 0.7, nb = Math.round(sd / 0.135), bwid = sd / nb;
+  for (let i = 0; i < nb; i++) {
+    const bz = sz - sd / 2 + (i + 0.5) * bwid, edge = Math.max(0, 1 - Math.min(Math.abs(bz - zN), Math.abs(bz - zS)) / 0.6);
+    const g = ik.box(sl, 0.02, bwid - 0.004, 'wood', { at: [smx, ry(smx) + 0.15, bz], rot: [0, 0, slope], r: 0.003, color: tint(rng, rng() < 0.2 ? 0xa89878 : 0xc4b498, 0.12), step: 1.2 });
+    varyBoard(g, rng, { dark: 0, corner: edge });
+  }
   const yA = ry(rx0) + 0.17, yB = ry(rx1) + 0.17;
   corrugatedRoof(k, { x0: rx0, x1: rx1, z0: zN - 0.35, z1: zS + 0.35, yA, yB, key: 'paint', color: 0x35503f });
   k.box(0.025, 0.2, S.d + 0.74, 'wood', { at: [rx1 + 0.013, yB - 0.08, sz], r: 0.004, color: 0x5e5242 });
