@@ -12,7 +12,7 @@ Keep the campervans intact until the highway reopens, while:
 
 Nobody gets hurt. The humour is carried by dry official signage and HUD text from the Department of Pass Conservation.
 
-**▶ Play in your browser: https://cgbarlow.github.io/kea-game/** (desktop Chrome or Edge, hardware GPU)
+**▶ Play in your browser: https://kea.chrisbarlow.nz/** (desktop Chrome or Edge, hardware GPU)
 
 The whole game is **one HTML file of about 1.1 MB** (`index.html`, about 350 KB gzipped). It contains no image, 3D model,
 texture or audio files: the terrain, beech forest, campervans, blower, kea, possums, signage, materials, sky and sound
