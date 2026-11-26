@@ -1,6 +1,6 @@
 // possums/rig — one skinned possum instance (Group → root bone + base SkinnedMesh + shell SkinnedMesh sharing one
 // Skeleton) and the procedural pose solver. Allocation-free: pose() only writes bone transforms.
-//   const r = makeRig(geo, mats); r.group.position…; pose(r, P) with P = {
+//   const r = makeRig(geo, mats, shellMat); r.group.position…; pose(r, P) with P = {
 //     ph (gait phase, rad), gait 0..1 (stride amplitude), slide 0..1 (splayed belly-slide), rear 0..1 (up on the
 //     hind legs at a door), crouch 0..1 (squeeze into a trap), shake 0..1 (post-slide shake-off), spin (rad/s, tail
 //     streams), headYaw, headPitch (rad), t (s) }
@@ -9,7 +9,7 @@ import { BONES, B } from './geo.js';
 
 const TAIL_REST = [0.3, 0.24, -0.12, -0.42];
 
-export function makeRig(geo, mats) {
+export function makeRig(geo, mats, shellMat = mats.shell) {
   const group = new Group();
   const bones = BONES.map(([name]) => { const b = new Bone(); b.name = 'possum_' + name; return b; });
   const rest = [];
@@ -21,7 +21,7 @@ export function makeRig(geo, mats) {
   });
   group.add(bones[0]);
   const base = new SkinnedMesh(geo.base, [mats.fur, mats.wet]);
-  const shell = new SkinnedMesh(geo.shell, mats.shell);
+  const shell = new SkinnedMesh(geo.shell, shellMat);
   base.name = 'possum'; shell.name = 'possumShell';
   base.castShadow = true; base.receiveShadow = true;
   shell.castShadow = false; shell.receiveShadow = true;
@@ -76,7 +76,7 @@ export function pose(r, P) {
     }
     b[B.head].rotation.x += 0.35 * sl;
     b[B.pelvis].rotation.z += 0.08 * sl * Math.sin(t * 9);
-    b[B.tail0].rotation.x -= 0.25 * sl;
+    b[B.tail0].rotation.x -= 0.6 * sl; // tail streams up and back in the airflow
   }
 
   // ---- rear up at the van door: hips stay over the hind feet, front paws scratch at the door seal

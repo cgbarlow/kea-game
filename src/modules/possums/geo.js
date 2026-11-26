@@ -5,7 +5,7 @@
 //   shell : 3 fur shells over body + tail (bare face + hidden belly skipped), offset along the normal, aFur.x = layer (0..1), aFur.y = fur length
 // Skin: 12 bones (see BONES), 2 influences per vertex. Vertex colour = linear albedo × baked AO (belly, legs,
 // between-limb contact), with per-possum colour morph + mottling from `look` (no two possums share a coat).
-// Budget: ~3.6 k tris per possum (base ~1.8 k + shells ~1.8 k) → 8 possums ≈ 28.8 k.
+// Budget: ~3.7 k tris per possum (base ~2.0 k + shells ~1.7 k) → 8 possums ≈ 29.5 k.
 import { BufferGeometry, BufferAttribute, Float32BufferAttribute, Uint16BufferAttribute, Color } from 'three';
 import { vnoise3, clamp, mix, sstep } from '../../cookbook/geo/noise.js';
 
@@ -28,21 +28,22 @@ export const B = { root: 0, pelvis: 1, chest: 2, head: 3, tail0: 4, tail1: 5, ta
 
 // body loft control table: z, centre y, half-width, half-height top, half-height bottom
 const LOFT = [
-  [0.200, 0.150, 0.004, 0.004, 0.004],
-  [0.186, 0.152, 0.046, 0.050, 0.046],
-  [0.155, 0.154, 0.072, 0.080, 0.074],
-  [0.105, 0.152, 0.084, 0.090, 0.086],
-  [0.045, 0.148, 0.086, 0.088, 0.088],
-  [-0.015, 0.146, 0.078, 0.082, 0.082],
-  [-0.075, 0.150, 0.066, 0.074, 0.070],
-  [-0.122, 0.158, 0.054, 0.062, 0.056],
-  [-0.155, 0.170, 0.046, 0.050, 0.046],
-  [-0.185, 0.180, 0.053, 0.053, 0.046],
-  [-0.215, 0.176, 0.047, 0.043, 0.038],
-  [-0.240, 0.166, 0.032, 0.030, 0.028],
-  [-0.262, 0.156, 0.019, 0.019, 0.018],
-  [-0.279, 0.150, 0.010, 0.010, 0.010],
-  [-0.288, 0.148, 0.003, 0.003, 0.003],
+  [0.200, 0.152, 0.004, 0.004, 0.004],
+  [0.188, 0.155, 0.054, 0.058, 0.050],
+  [0.158, 0.158, 0.084, 0.092, 0.080],
+  [0.108, 0.158, 0.098, 0.110, 0.092],
+  [0.048, 0.155, 0.098, 0.104, 0.092],
+  [-0.012, 0.151, 0.088, 0.090, 0.086],
+  [-0.072, 0.155, 0.074, 0.080, 0.072],
+  [-0.118, 0.165, 0.060, 0.066, 0.058],
+  [-0.148, 0.178, 0.061, 0.060, 0.054],
+  [-0.178, 0.187, 0.067, 0.063, 0.055],
+  [-0.206, 0.184, 0.058, 0.053, 0.046],
+  [-0.230, 0.174, 0.042, 0.038, 0.034],
+  [-0.250, 0.165, 0.028, 0.026, 0.023],
+  [-0.265, 0.159, 0.016, 0.016, 0.015],
+  [-0.275, 0.157, 0.008, 0.008, 0.008],
+  [-0.280, 0.156, 0.003, 0.003, 0.003],
 ];
 function cr(p0, p1, p2, p3, t) { // Catmull-Rom
   const t2 = t * t, t3 = t2 * t;
@@ -120,8 +121,8 @@ export function buildPossumGeo(look) {
   const body = new Part(), wet = new Part(), tailP = new Part(), limbs = new Part();
   const sd = look.seed;
   const grey = look.grey, back = look.back, belly = look.belly, black = look.tail;
-  const dark = C(0x2a2522), muzzle = mul3(lerp3(grey, dark, 0.6), 0.9), pink = C(0xc98a86), cheek = lerp3(grey, belly, 0.6);
-  const RINGS = 22, RAD = 12, L = [0, 0, 0, 0, 0];
+  const dark = C(0x2a2522), muzzle = mul3(lerp3(grey, dark, 0.6), 0.9), pink = C(0xb07a74), cheek = lerp3(grey, belly, 0.6);
+  const RINGS = 22, RAD = 13, L = [0, 0, 0, 0, 0];
   // body + head loft
   ringGrid(body, RINGS, RAD, (r, j) => {
     const s = r / (RINGS - 1);
@@ -135,12 +136,13 @@ export function buildPossumGeo(look) {
     // colour: grey coat, darker dorsal band, cream belly + throat, dark muzzle, dark eye stripe, pale cheeks
     const up = cyy, side = Math.abs(sx);
     let col = lerp3(grey, back, sstep(0.55, 0.95, up) * 0.8);
-    col = lerp3(col, belly, sstep(-0.25, -0.65, up) * (z > -0.25 ? 1 : 0.4));
+    col = lerp3(col, belly, sstep(-0.15, -0.6, up) * (z > -0.235 ? 1.1 : 0.4));
     if (z < -0.13) { // face
-      const eyeBand = sstep(0.25, 0.0, Math.abs(up - 0.45)) * sstep(-0.17, -0.21, z) * sstep(-0.27, -0.235, z);
+      const eyeBand = sstep(0.25, 0.0, Math.abs(up - 0.4)) * sstep(-0.165, -0.2, z) * sstep(-0.262, -0.228, z);
       col = lerp3(col, cheek, sstep(-0.1, -0.5, up) * 0.7 * side);
-      col = lerp3(col, mul3(dark, 1.2), eyeBand * 0.55);
-      col = lerp3(col, muzzle, sstep(-0.245, -0.28, z) * 0.85);
+      col = lerp3(col, mul3(dark, 1.1), eyeBand * 0.8);
+      col = lerp3(col, mul3(dark, 1.2), sstep(0.25, 0.05, Math.abs(up - 0.3)) * sstep(-0.2, -0.235, z) * 0.6); // dark bridge from the eyes down the muzzle
+      col = lerp3(col, muzzle, sstep(-0.238, -0.272, z) * 0.85);
       col = lerp3(col, mul3(grey, 1.1), sstep(0.7, 0.98, up) * sstep(-0.16, -0.2, z) * sstep(-0.25, -0.22, z) * 0.5); // pale brow
     }
     const mot = 0.86 + 0.28 * vnoise3(x * 38, y * 38, z * 22, sd);
@@ -148,21 +150,24 @@ export function buildPossumGeo(look) {
     const ao = mix(0.5, 1, sstep(-0.95, 0.1, up)) * (z < -0.24 ? 1 : mix(0.82, 1, sstep(-0.6, -0.1, up) + sstep(0.06, 0.16, y)));
     col = mul3(col, mot * ao);
     const [b0, b1, w] = spineW(z);
-    const furLen = (z < -0.225 ? 0.2 : z < -0.15 ? 0.6 : 1) * (cyy < -0.6 ? 0.2 : cyy < -0.2 ? 0.75 : 1) * (s < 0.04 ? 0.3 : 1);
+    const furLen = (z < -0.228 ? 0.2 : z < -0.15 ? 0.6 : 1) * (cyy < -0.6 ? 0.2 : cyy < -0.2 ? 0.75 : 1) * (s < 0.04 ? 0.3 : 1);
     body.v(x, y, z, col, b0, b1, w, furLen);
   });
 
   // ears (base fur material): flattened ellipsoids, outward + back tilt, pale pink inner face
   for (const sx of [-1, 1]) {
-    const cx = sx * 0.031, cyE = 0.222, cz = -0.178, ER = 7, ERING = 6;
-    const ax = 0.026, ay = 0.034, az = 0.008, tilt = sx * 0.42, back = 0.3;
+    const cx = sx * 0.038, cyE = 0.244, cz = -0.164, ER = 9, ERING = 7;
+    const ax = 0.019, ay = 0.048, az = 0.01, tilt = sx * 0.2, back = 0.1;
     const ct = Math.cos(tilt), st = Math.sin(tilt), cb = Math.cos(back), sb = Math.sin(back);
     ringGrid(limbs, ERING, ER, (r, j) => {
       const v = (r / (ERING - 1)) * Math.PI, u = (j / ER) * Math.PI * 2;
       let lx = ax * Math.sin(v) * Math.cos(u), ly = -ay * Math.cos(v), lz = az * Math.sin(v) * Math.sin(u);
-      ly += ay * 0.15 * (1 - Math.sin(v)); // pointed-ish tip
+      ly += ay * 0.12 * (1 - Math.sin(v)); // oval, slightly pointed tip
+      lz -= 0.012 * Math.pow(lx / ax, 2) * Math.sin(v); // cupped forward at the rims
+      if (Math.sin(u) < 0) lz *= 0.35; // cupped: the pink inner face sits back inside the rim
       const front = Math.sin(u) < 0; // facing -Z = forward
-      let col = front ? lerp3(pink, grey, 0.45 + 0.4 * Math.abs(lx / ax)) : mul3(dark, 1.3);
+      let col = front ? lerp3(mul3(lerp3(pink, grey, 0.62), 0.8), mul3(grey, 0.75), 0.25 + 0.7 * sstep(0.45, 1.0, Math.abs(lx / ax) + Math.max(0, ly / ay))) : lerp3(grey, mul3(dark, 1.2), 0.7);
+      col = mul3(lerp3(col, mul3(dark, 1.1), sstep(0.5, 0.95, ly / ay) * 0.85), 0.75); // dark-tipped, never paper-bright
       if (ly < -ay * 0.6) col = lerp3(col, grey, 0.6);
       const ry2 = ly * cb - lz * sb, rz2 = ly * sb + lz * cb;
       const x = cx + lx * ct - ry2 * st, y = cyE + 0.02 + lx * st + ry2 * ct, z = cz + rz2;
@@ -171,24 +176,24 @@ export function buildPossumGeo(look) {
   }
 
   // tail: bushy tube, grey at the root then black; slight droop in bind pose (bones curl it)
-  const TR = 9, TRINGS = 15, TLEN = 0.34;
+  const TR = 9, TRINGS = 13, TLEN = 0.37;
   ringGrid(tailP, TRINGS, TR, (r, j) => {
     const t = r / (TRINGS - 1);
     const z = 0.17 + t * TLEN, cy = 0.152 - t * 0.012;
-    const rad = t < 0.02 ? 0.02 : (0.031 + 0.016 * sstep(0, 0.35, t) - 0.034 * sstep(0.45, 1, t) + 0.004 * Math.sin(t * 19 + sd)) * (t > 0.97 ? 0.4 : 1);
+    const rad = t < 0.02 ? 0.026 : (0.042 + 0.026 * sstep(0, 0.3, t) - 0.054 * sstep(0.5, 1, t) + 0.004 * Math.sin(t * 19 + sd)) * (t > 0.97 ? 0.4 : 1);
     const th = (j / TR) * Math.PI * 2, sx = Math.sin(th), cyy = Math.cos(th);
     const x = rad * sx, y = cy + rad * cyy * 0.92;
     let col = lerp3(grey, black, sstep(0.08, 0.3, t));
     col = mul3(col, (0.82 + 0.3 * vnoise3(x * 40, y * 40, z * 30, sd + 7)) * mix(0.7, 1, sstep(-1, 0.2, cyy)));
     const f = t * 4, bi = Math.min(3, Math.floor(f)), w = 1 - sstep(0.5, 1, f - bi);
     const b1 = Math.min(3, bi + 1);
-    tailP.v(x, y, z, col, B.tail0 + bi, B.tail0 + b1, bi === b1 ? 1 : w, 1.6 * (1 - 0.6 * sstep(0.8, 1, t)));
+    tailP.v(x, y, z, col, B.tail0 + bi, B.tail0 + b1, bi === b1 ? 1 : w, 1.3 * (1 - 0.5 * sstep(0.85, 1, t)));
   });
 
   // legs: tapered capsule from the joint into the paw; paws flattened, dark, pale claw tips
   for (const bi of [B.FL, B.FR, B.RL, B.RR]) {
     const [jx, jy, jz] = BONES[bi][2], rear = bi >= B.RL, LR = 7, LRINGS = 5;
-    const r0 = rear ? 0.028 : 0.022, r1 = rear ? 0.015 : 0.013;
+    const r0 = rear ? 0.04 : 0.032, r1 = rear ? 0.02 : 0.018;
     ringGrid(limbs, LRINGS, LR, (r, j) => {
       const t = r / (LRINGS - 1), th = (j / LR) * Math.PI * 2;
       const rad = mix(r0, r1, sstep(0, 1, t)) * (t > 0.96 ? 0.5 : 1) * (t < 0.01 ? 0.45 : 1);
@@ -202,7 +207,7 @@ export function buildPossumGeo(look) {
     const px = jx * 1.3, pz = jz - (rear ? 0.02 : 0.012), PR = 7, PRING = 5;
     ringGrid(limbs, PRING, PR, (r, j) => {
       const v = (r / (PRING - 1)) * Math.PI, u = (j / PR) * Math.PI * 2;
-      const lx = 0.0125 * Math.sin(v) * Math.cos(u), ly = 0.01 * Math.sin(v) * Math.sin(u), lz = -(rear ? 0.03 : 0.022) * Math.cos(v);
+      const lx = 0.015 * Math.sin(v) * Math.cos(u), ly = 0.01 * Math.sin(v) * Math.sin(u), lz = -(rear ? 0.03 : 0.022) * Math.cos(v);
       const tip = sstep(0.4, 1, -lz / 0.028);
       const col = lerp3(mul3(dark, 0.8), C(0x9a8a78), tip * sstep(0.004, -0.004, ly) * 0.8);
       limbs.v(px + lx, Math.max(0.0015, 0.011 + ly), pz + lz, col, bi, bi, 1, 0);
@@ -211,17 +216,20 @@ export function buildPossumGeo(look) {
 
   // eyes + nose (wet material): big dark protruding eyes on the face, pink moist nose
   const eyeL = [0, 0, 0, 0, 0];
-  loftAt(sAtZ(-0.203), eyeL);
-  const eRows = 6, eRad = 8;
+  loftAt(sAtZ(-0.196), eyeL);
+  const eRows = 8, eRad = 10;
   for (const sx of [-1, 1]) {
-    const er = 0.0128, ex = sx * (eyeL[2] * 0.74), ey = eyeL[1] + eyeL[3] * 0.4, ez = eyeL[0];
+    const er = 0.0165, ex = sx * (eyeL[2] * 0.8), ey = eyeL[1] + eyeL[3] * 0.36, ez = eyeL[0];
     ringGrid(wet, eRows, eRad, (r, j) => {
       const v = (r / (eRows - 1)) * Math.PI, u = (j / eRad) * Math.PI * 2;
-      const lx = er * Math.cos(v), ly = er * Math.sin(v) * Math.cos(u), lz = er * Math.sin(v) * Math.sin(u) * 1.1;
-      wet.v(ex + lx * 0.8, ey + ly, ez + lz, C(0x050403), B.head, B.chest, 1, 0);
+      const lx = er * Math.cos(v), ly = er * Math.sin(v) * Math.cos(u), lz = er * Math.sin(v) * Math.sin(u) * 1.15;
+      // baked catchlight (upper front of the outward face) + a dark-brown iris toward the front; the clearcoat adds the live glint
+      const ox = lx * sx, d = (ox * 0.55 + ly * 0.6 - lz * 0.55) / er, gl = sstep(0.88, 0.98, d);
+      const col = lerp3(lerp3(C(0x0a0706), C(0x3a2418), sstep(0.2, 0.6, ox / er) * 0.6), C(0x9a928a), gl);
+      wet.v(ex + lx * 0.85, ey + ly, ez + lz, col, B.head, B.chest, 1, 0);
     });
   }
-  { const nr = 0.0085, nx0 = 0, ny0 = 0.1505, nz0 = -0.284, NR = 8, NRING = 5;
+  { const nr = 0.0095, nx0 = 0, ny0 = 0.1565, nz0 = -0.277, NR = 8, NRING = 5;
     ringGrid(wet, NRING, NR, (r, j) => {
       const v = (r / (NRING - 1)) * Math.PI, u = (j / NR) * Math.PI * 2;
       const lx = nr * 1.15 * Math.sin(v) * Math.cos(u), ly = nr * 0.8 * Math.sin(v) * Math.sin(u), lz = -nr * Math.cos(v);

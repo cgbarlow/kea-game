@@ -15,7 +15,8 @@ import { createPossumMaterials } from './materials.js';
 import { makeRig, pose } from './rig.js';
 
 const MAX = 8, TRAP_R = 0.6, BLOW_MIN = 0.08, PUSH_K = 0.5, RAID_DPS = 0.012;
-const SHOW_CAM = [3.6, 1.2, 0.2], SHOW_TARGET = [2.3, 0.2, 2.4];
+// showcase: the trap line at T-015 (LAYOUT.traps[2]); a possum mid-tumble in the airflow, sliding toward the mouth
+const SHOW_CAM = [5.64, 0.84, 12.96], SHOW_TARGET = [5.1, 0.1, 13.98], SHOW_TRAP = 2;
 const _a = new Vector3(), _f = new Vector3(), _q = new Vector3(), _m = new Matrix4(), _qq = new Quaternion(), _e = new Euler(), _s = new Vector3();
 const P = { ph: 0, gait: 0, slide: 0, rear: 0, crouch: 0, shake: 0, spin: 0, headYaw: 0, headPitch: 0, t: 0 };
 const SPRAY = { count: 2, size: 0.07, grow: 3.2, life: 0.55, color: [0.62, 0.66, 0.70], opacity: 0.32, spread: 0.6, vel: new Vector3(), rise: 0.05 };
@@ -29,7 +30,7 @@ const COATS = [
   [0x725f4e, 0x543f32, 0xbca486, 0x1a1411, 0.98], [0x636365, 0x464649, 0xb8af9e, 0x101011, 1.02],
   [0x807e7c, 0x5f5c5a, 0xcbc1ac, 0x161514, 0.88], [0x776553, 0x58473a, 0xc4ad8c, 0x19140f, 1.0],
 ];
-const lin = (h) => { const c = new Color(h); return [c.r * 0.82, c.g * 0.82, c.b * 0.82]; }; // coats sit under the low sun at 9.5: keep albedo mid-grey
+const lin = (h) => { const c = new Color(h); return [c.r * 1.08, c.g * 1.08, c.b * 1.08]; }; // linear albedo ~0.15-0.2: reads against the dark asphalt
 const wrapA = (a) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
 const smooth = (cur, tgt, k, dt) => cur + (tgt - cur) * Math.min(1, k * dt);
 
@@ -39,15 +40,17 @@ export function create(G, { vans, blower, traps = [] } = {}) {
   const list = [];
   for (let i = 0; i < MAX; i++) {
     const c = COATS[i];
-    const geo = buildPossumGeo({ seed: 11 + i * 17, grey: lin(c[0]), back: lin(c[1]), belly: lin(c[2]), tail: lin(c[3]), furLen: 0.014 + (i % 3) * 0.0015 });
-    const rig = makeRig(geo, mats);
-    const mesh = rig.group; mesh.visible = false; mesh.name = 'possum' + i;
+    const geo = buildPossumGeo({ seed: 11 + i * 17, grey: lin(c[0]), back: lin(c[1]), belly: lin(c[2]), tail: lin(c[3]), furLen: 0.02 + (i % 3) * 0.0015 });
+    const shellMat = mats.shellFor();
+    const rig = makeRig(geo, mats, shellMat);
+    const mesh = rig.group; mesh.visible = false; mesh.name = 'possum' + i; mesh.rotation.order = 'YXZ'; // yaw, then pitch/roll in body frame
     const sc = c[4] * (0.97 + ((i * 37) % 7) * 0.01);
     mesh.scale.setScalar(sc);
     root.add(mesh);
     list.push({ i, state: 'idle', pos: new Vector3(), vel: new Vector3(), van: null, mesh, rig, t: 0, scale: sc,
       yaw: 0, spin: 0, ph: i * 1.3, gait: 0, slide: 0, rear: 0, crouch: 0, shake: 0, headYaw: 0, headPitch: 0,
-      speed: 1.15 + ((i * 53) % 9) * 0.04, wander: i * 2.1, spray: 0, trap: -1, enterT: 0, stuck: 0 });
+      speed: 1.15 + ((i * 53) % 9) * 0.04, wander: i * 2.1, spray: 0, trap: -1, enterT: 0, stuck: 0,
+      roll: 0, pitch: 0, lift: 0, ruffle: 0, windX: 0, windZ: 1, ruf: shellMat.userData });
   }
   // contact shadows: one instanced draw for all eight
   const blobGeo = new PlaneGeometry(0.34, 0.62); blobGeo.rotateX(-Math.PI / 2);
@@ -55,10 +58,18 @@ export function create(G, { vans, blower, traps = [] } = {}) {
   blobs.frustumCulled = false; blobs.renderOrder = 1;
   _m.makeScale(0, 0, 0); for (let i = 0; i < MAX; i++) blobs.setMatrixAt(i, _m);
   root.add(blobs);
+  // sun streaks: the 14-degree sun throws a ~0.7 m shadow that PCSS softens to nothing on a 0.18 m animal; a faint
+  // elongated blob down-sun keeps them anchored (one more instanced draw)
+  const streakGeo = new PlaneGeometry(0.2, 1); streakGeo.translate(0, 0.5, 0); streakGeo.rotateX(-Math.PI / 2);
+  const streaks = new InstancedMesh(streakGeo, mats.streak, MAX); streaks.name = 'possumSunShadow';
+  streaks.frustumCulled = false; streaks.renderOrder = 1;
+  for (let i = 0; i < MAX; i++) streaks.setMatrixAt(i, _m);
+  root.add(streaks);
+  const sunDir = G.sun?.dir || new Vector3(-0.91, 0.24, -0.33);
   G.scene.add(root);
 
   const vanList = () => (vans && vans.list) || [];
-  const API = { list, trapped: 0, materials: mats.list, frozen: false };
+  const API = { list, trapped: 0, materials: [...mats.list, ...mats.shells], frozen: false };
   const fx = () => G.mods && G.mods.fx;
   const groundY = (x, z) => {
     const cp = L.carpark;
@@ -70,7 +81,7 @@ export function create(G, { vans, blower, traps = [] } = {}) {
 
   function show(p, on) {
     p.mesh.visible = on;
-    if (!on) { _m.makeScale(0, 0, 0); blobs.setMatrixAt(p.i, _m); blobs.instanceMatrix.needsUpdate = true; }
+    if (!on) { _m.makeScale(0, 0, 0); blobs.setMatrixAt(p.i, _m); blobs.instanceMatrix.needsUpdate = true; streaks.setMatrixAt(p.i, _m); streaks.instanceMatrix.needsUpdate = true; }
   }
 
   API.spawn = (n = 1) => {
@@ -135,18 +146,26 @@ export function create(G, { vans, blower, traps = [] } = {}) {
   // ---------------------------------------------------------------- render state → rig + blob
   function apply(p, dt) {
     const m = p.mesh;
-    m.position.copy(p.pos);
-    m.rotation.set(0, p.yaw, 0);
+    m.position.copy(p.pos); m.position.y += p.lift;
+    m.rotation.set(p.pitch, p.yaw, p.roll);
     P.ph = p.ph; P.gait = p.gait; P.slide = p.slide; P.rear = p.rear; P.crouch = p.crouch; P.shake = p.shake;
     P.spin = p.spin; P.headYaw = p.headYaw; P.headPitch = p.headPitch; P.t = G.t + p.i * 0.37;
-    if (p.slide > 0.01) m.rotation.z = Math.sin(P.t * 7) * 0.06 * p.slide; // body wobble on the slide
+    if (p.slide > 0.01 && !API.frozen) m.rotation.z += Math.sin(P.t * 7) * 0.06 * p.slide; // body wobble on the slide
+    // fur ruffle: airflow direction into possum-local space (rotation about Y by yaw), a little lift off the skin
+    const cy = Math.cos(p.yaw), sy = Math.sin(p.yaw), R = p.ruf.ruffle.value;
+    R.set(p.windX * cy - p.windZ * sy, 0.25, p.windX * sy + p.windZ * cy, p.ruffle);
     pose(p.rig, P);
     // blob: smaller + darker when flat on the ground, stretched when reared up
-    const k = p.scale * (1 + 0.15 * p.slide - 0.25 * p.rear);
+    const k = p.scale * (1 + 0.15 * p.slide - 0.25 * p.rear) * (1 - Math.min(0.5, p.lift * 3));
     _e.set(0, p.yaw, 0); _qq.setFromEuler(_e);
     _q.set(p.pos.x, p.pos.y + 0.006, p.pos.z);
     _s.set(k * (1 + 0.3 * p.slide), 1, k * (1 - 0.35 * p.rear));
     _m.compose(_q, _qq, _s); blobs.setMatrixAt(p.i, _m); blobs.instanceMatrix.needsUpdate = true;
+    // streak: local -Z of the plane points down-sun; length = height / tan(sun elevation), capped
+    const sh = Math.max(0.08, sunDir.y), len = Math.min(1.6, (0.17 + 0.12 * p.rear - 0.07 * p.slide + p.lift) * p.scale * Math.hypot(sunDir.x, sunDir.z) / sh);
+    _e.set(0, Math.atan2(sunDir.x, sunDir.z), 0); _qq.setFromEuler(_e);
+    _q.set(p.pos.x, p.pos.y + 0.005, p.pos.z); _s.set(p.scale * (1 + 0.4 * p.slide), 1, len);
+    _m.compose(_q, _qq, _s); streaks.setMatrixAt(p.i, _m); streaks.instanceMatrix.needsUpdate = true;
     void dt;
   }
 
@@ -227,6 +246,9 @@ export function create(G, { vans, blower, traps = [] } = {}) {
         if (s > BLOW_MIN) {
           blower.forceAt(_q, _f); _f.y = 0;
           p.vel.addScaledVector(_f, dt * PUSH_K);
+          const fl = Math.hypot(_f.x, _f.z);
+          if (fl > 1e-4) { p.windX = _f.x / fl; p.windZ = _f.z / fl; }
+          p.ruffle = smooth(p.ruffle, Math.min(1, s * 1.5), 10, dt);
           // torque: airflow across the body spins it
           const hx = -Math.sin(p.yaw), hz = -Math.cos(p.yaw);
           p.spin += (hx * _f.z - hz * _f.x) * dt * 0.25;
@@ -247,6 +269,8 @@ export function create(G, { vans, blower, traps = [] } = {}) {
       p.slide = smooth(p.slide, slideT, slideT > p.slide ? 14 : 3, dt);
       p.rear = smooth(p.rear, rearT, 5, dt);
       p.crouch = smooth(p.crouch, crouchT, 8, dt);
+      p.ruffle = smooth(p.ruffle, 0, 1.5, dt); p.roll = smooth(p.roll, 0, 6, dt); p.pitch = smooth(p.pitch, 0, 6, dt); p.lift = smooth(p.lift, 0, 8, dt);
+      p.ruf.rufPh.value += dt * (6 + 30 * p.ruffle);
       // glance at the ranger when they are close (a possum always knows)
       const cx = camP.x - p.pos.x, cz = camP.z - p.pos.z, cd = Math.hypot(cx, cz);
       let hy = 0;
@@ -257,26 +281,37 @@ export function create(G, { vans, blower, traps = [] } = {}) {
     }
   };
 
-  // ---------------------------------------------------------------- capture tableau: one possum heading for van B's door,
-  // mid-stride, glancing back over its shoulder at the ranger
+  // ---------------------------------------------------------------- capture tableau
+  // ?show=possums: the trap line. One possum caught in the blower's airflow mid-tumble (rolled onto a shoulder, paws
+  // splayed, fur streaming downwind), glaring back at the ranger as it slides toward the mouth of trap T-015.
+  // Plain ?shot (hero pose 5 looks at van B's cab from the north-west): a possum crossing the van's nose.
   if (G.params.get('shot') || G.params.get('show') === 'possums') {
     const v = vanList()[1];
-    if (v) {
-      const p = list[0];
+    const sc = G.params.get('show') === 'possums';
+    if (sc && traps[SHOW_TRAP]) {
+      const p = list[6], m = traps[SHOW_TRAP].mouth; // the pale silver-grey coat: reads against the asphalt
+      p.van = v || null; p.state = 'blown';
+      p.pos.set(m[0] - 0.62, 0, m[2] - 1.12);
+      p.yaw = 1.3; p.roll = -0.26; p.pitch = 0.06; p.lift = 0.02; p.slide = 0.6; p.spin = 0; p.gait = 0.3; p.ph = 1.9;
+      const cx = SHOW_CAM[0] - p.pos.x, cz = SHOW_CAM[2] - p.pos.z;
+      p.headYaw = Math.max(-0.9, Math.min(0.9, wrapA(Math.atan2(-cx, -cz) - p.yaw)));
+      p.headPitch = -0.1;
+      _a.set(m[0] - SHOW_CAM[0], 0, m[2] - SHOW_CAM[2]).normalize(); p.windX = _a.x; p.windZ = _a.z; p.ruffle = 1;
+      p.ruf.rufPh.value = 1.3;
+      show(p, true); apply(p, 0);
+      if (blower) blower.forceFire = true; // the plume is the point of the shot
+    } else if (v) {
+      const p = list[0], cam = G.POSES?.[4] || SHOW_CAM;
       p.van = v; p.state = 'walk';
-      // ?show=possums: on the door side, framed by the showcase camera. Plain ?shot (hero pose 5 looks at the cab
-      // from the north-west, the door is round the far side): crossing the van's nose toward the door-side corner.
-      const sc = G.params.get('show') === 'possums', cam = sc ? SHOW_CAM : G.POSES?.[4] || SHOW_CAM;
-      if (sc) { p.pos.set(2.75, 0, 1.6); const hx = v.doorPos.x - p.pos.x, hz = v.doorPos.z - p.pos.z; p.yaw = Math.atan2(-hx, -hz); }
-      else { p.pos.set(0.3, 0, 0.3); p.yaw = -Math.PI / 2 - 0.15; }
+      p.pos.set(0.3, 0, 0.3); p.yaw = -Math.PI / 2 - 0.15;
       p.ph = 0.9; p.gait = 1;
       const cx = cam[0] - p.pos.x, cz = cam[2] - p.pos.z;
       p.headYaw = Math.max(-0.9, Math.min(0.9, wrapA(Math.atan2(-cx, -cz) - p.yaw)));
       p.headPitch = 0.12;
       show(p, true); apply(p, 0);
-      // ?possums=lineup (inspection): every coat + every animation state around van B's door and trap T-015
-      if (G.params.get('possums') === 'lineup') lineup(v);
     }
+    // ?possums=lineup (inspection): every coat + every animation state around van B's door and trap T-015
+    if (v && G.params.get('possums') === 'lineup') lineup(v);
     API.frozen = true;
   }
   function lineup(v) {
