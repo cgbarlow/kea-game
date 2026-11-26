@@ -1,0 +1,163 @@
+{
+ "query": "autostart=1&mode=kea&shift=40",
+ "w": 1280,
+ "h": 720,
+ "steps": [
+  {
+   "waitFor": "__G.mods.hud && __G.mods.hud.ui && __G.mods.hud.ui.state === 'playing'",
+   "timeout": 180000
+  },
+  {
+   "eval": "(__G.mods.game.state = 'idle', 1)"
+  },
+  {
+   "assert": "__G.mode === 'kea' && document.getElementById('ui').dataset.mode === 'kea'",
+   "msg": "?mode=kea&autostart starts kea mode"
+  },
+  {
+   "assert": "__G.mods.keagame.enabled && __G.mods.keagame.state === 'shift' && __G.mods.keagame.shiftLength === 40",
+   "msg": "keagame enabled, ?shift honoured"
+  },
+  {
+   "assert": "__G.mods.keagame.group.visible",
+   "msg": "props visible in kea mode"
+  },
+  {
+   "eval": "(() => { const kg = __G.mods.keagame, kp = __G.mods.keaplayer; window.__bank = (kind) => { kp.carrying = { kind }; kp.position.copy(kg.stashAt); kp.position.y += 0.2; }; return kg.stash.count; })()",
+   "as": "c0"
+  },
+  {
+   "eval": "(__G.emit('kea:pull:done', __G.mods.keaplayer, __G.mods.vans.list[0], 'wiper'), __bank('wiper'), 1)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "assert": "__G.mods.keagame.banked === 1 && __G.mods.keagame.stash.count === 1 && !__G.mods.keaplayer.carrying",
+   "msg": "banking a wiper"
+  },
+  {
+   "assert": "document.querySelector('[data-k=banked]').textContent === '1'",
+   "msg": "HUD research count"
+  },
+  {
+   "eval": "(__G.emit('kea:pull:done', __G.mods.keaplayer, null, 'cone'), __G.mods.keagame.cone)",
+   "as": "cone1"
+  },
+  {
+   "assert": "__pt.cone1 === 'carried' && !__G.mods.keagame.group.children.find(m => m.name === 'keagame:cone').visible",
+   "msg": "cone carried, gate cone hidden"
+  },
+  {
+   "eval": "(__G.mods.keaplayer.carrying = null, __G.emit('kea:drop', __G.mods.keaplayer, 'cone', null, __G.mods.keaplayer.position), __G.emit('kea:tumble', __G.mods.keaplayer, false, 'cone'), 1)"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "assert": "__G.mods.keagame.cone === 'dropped' && __G.mods.keagame.notices === 1",
+   "msg": "tumble while carrying = notice; cone dropped"
+  },
+  {
+   "eval": "(() => { for (let i = 0; i < 8; i++) { __G.emit('kea:pull:done', __G.mods.keaplayer, null, ['seal','mirror','strap','wiper'][i % 4]); __bank(['seal','mirror','strap','wiper'][i % 4]); __G.mods.keagame.update(0.016); } return __G.mods.keagame.banked; })()",
+   "as": "b9"
+  },
+  {
+   "assert": "__pt.b9 === 9 && __G.mods.keagame.state === 'shift'",
+   "msg": "9 banked, no cone yet: no win"
+  },
+  {
+   "eval": "(__G.emit('kea:pull:done', __G.mods.keaplayer, null, 'cone'), __bank('cone'), 1)"
+  },
+  {
+   "wait": 600
+  },
+  {
+   "assert": "__G.mods.keagame.state === 'won' && __G.mods.keagame.reason === 'kea:won' && __G.mods.hud.ui.state === 'ended'",
+   "msg": "quota + cone = win, end screen"
+  },
+  {
+   "assert": "document.querySelector('[data-end=sub]').textContent.includes('kept the cone')",
+   "msg": "win line"
+  },
+  {
+   "shot": "kea-end-won"
+  },
+  {
+   "eval": "(document.querySelector('#end [data-act=restart]').click(), 1)"
+  },
+  {
+   "eval": "(__G.mods.game.state = 'idle', 1)"
+  },
+  {
+   "wait": 500
+  },
+  {
+   "assert": "__G.mode === 'kea' && __G.mods.keagame.state === 'shift' && __G.mods.keagame.banked === 0 && __G.mods.keagame.stash.count === 0 && __G.mods.keagame.cone === 'gate'",
+   "msg": "restart = same mode, reset"
+  },
+  {
+   "eval": "(() => { const kp = __G.mods.keaplayer; for (let i = 0; i < 3; i++) { kp.pulling = 0.5; __G.mods.keagame.update(0.016); __G.emit('kea:tumble', kp, true, null); kp.pulling = 0; __G.mods.keagame.update(1.0); } return __G.mods.keagame.notices; })()",
+   "as": "n3"
+  },
+  {
+   "wait": 600
+  },
+  {
+   "assert": "__G.mods.keagame.state === 'lost' && __G.mods.keagame.reason === 'kea:relocated'",
+   "msg": "3 notices = relocated"
+  },
+  {
+   "shot": "kea-end-relocated"
+  },
+  {
+   "eval": "(document.querySelector('#end [data-act=restart]').click(), 1)"
+  },
+  {
+   "eval": "(__G.mods.game.state = 'idle', 1)"
+  },
+  {
+   "waitFor": "__G.mods.keagame.phase === 'alert'",
+   "timeout": 30000
+  },
+  {
+   "assert": "document.querySelector('[data-h=bSub]').textContent.includes('does not apply to kea')",
+   "msg": "aftershock banner copy"
+  },
+  {
+   "shot": "kea-hud-alert"
+  },
+  {
+   "waitFor": "__G.mods.keagame.state === 'lost'",
+   "timeout": 60000
+  },
+  {
+   "assert": "__G.mods.keagame.reason === 'kea:reopened' && document.querySelector('[data-end=sub]').textContent.includes('Yet.')",
+   "msg": "timer out = road open, cone not kept"
+  },
+  {
+   "assert": "__G.mods.keagame.stats.aftershocks >= 1",
+   "msg": "aftershocks counted"
+  },
+  {
+   "eval": "(document.querySelector('#end [data-act=title]').click(), 1)"
+  },
+  {
+   "wait": 400
+  },
+  {
+   "eval": "(__G.mods.hud.ui.start('ranger'), 1)"
+  },
+  {
+   "wait": 400
+  },
+  {
+   "assert": "__G.mode === 'ranger' && !__G.mods.keagame.enabled && __G.mods.keagame.state === 'idle' && !__G.mods.keagame.group.visible",
+   "msg": "ranger mode disables keagame + hides props"
+  },
+  {
+   "assert": "__G.mods.vans.list.every(v => !v.lockedBy)",
+   "msg": "no van locks in ranger mode"
+  }
+ ]
+}

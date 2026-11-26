@@ -1,0 +1,206 @@
+{
+ "query": "autostart=1&seed=4207",
+ "w": 1280,
+ "h": 720,
+ "steps": [
+  {
+   "waitFor": "__G.mods.hud && __G.mods.hud.ui && __G.mods.hud.ui.state === 'playing'",
+   "timeout": 180000
+  },
+  {
+   "eval": "(() => { const G = __G, K = G.mods.keaplayer, b = G.mods.blower; window.__ev = []; for (const e of ['kea:pull:start','kea:pull:stop','kea:pull:done','kea:squawk','kea:land','kea:takeoff','kea:tumble','kea:offended','kea:drop']) G.on(e, () => __ev.push(e)); G.mods.game.player.enabled = false; b.enabled = false; b.overlay.scene = K.overlay.scene; b.overlay.camera = K.overlay.camera; K.enabled = true; K.teleport([-4, 4.3, -30.4], Math.PI); return K.mode + ' y=' + K.position.y.toFixed(2) + ' ground=' + G.mods.terrain.heightAt(-4, -30.4).toFixed(2); })()"
+  },
+  {
+   "wait": 500
+  },
+  {
+   "assert": "__G.mods.keaplayer.grounded && Math.abs(__G.camera.position.y - __G.mods.keaplayer.position.y - 0.35) < 0.08",
+   "msg": "spawn on the stash ledge, camera at kea eye"
+  },
+  {
+   "shot": "k1-spawn"
+  },
+  {
+   "eval": "__G.mods.keaplayer.position.z",
+   "as": "z0"
+  },
+  {
+   "hold": "forward",
+   "ms": 900
+  },
+  {
+   "assert": "__G.mods.keaplayer.position.z > __pt.z0 + 0.5 && __G.mods.keaplayer.grounded",
+   "msg": "hop-walk forward (south)"
+  },
+  {
+   "press": "jump"
+  },
+  {
+   "wait": 120
+  },
+  {
+   "assert": "__G.mods.keaplayer.mode === 'hop'",
+   "msg": "tap Space = hop"
+  },
+  {
+   "wait": 900
+  },
+  {
+   "assert": "__G.mods.keaplayer.grounded",
+   "msg": "hop lands"
+  },
+  {
+   "eval": "__G.mods.keaplayer.position.y",
+   "as": "y0"
+  },
+  {
+   "hold": "jump",
+   "ms": 2600
+  },
+  {
+   "eval": "JSON.stringify({m: __G.mods.keaplayer.mode, y: __G.mods.keaplayer.position.y, st: __G.mods.keaplayer.stamina})"
+  },
+  {
+   "assert": "__G.mods.keaplayer.flying && __G.mods.keaplayer.position.y > __pt.y0 + 2.5 && __G.mods.keaplayer.stamina < 0.8",
+   "msg": "hold Space = flap climb, drains wing capacity"
+  },
+  {
+   "shot": "k2-flap"
+  },
+  {
+   "wait": 800
+  },
+  {
+   "assert": "__G.mods.keaplayer.flying && __G.mods.keaplayer.velocity.y < 0 && Math.hypot(__G.mods.keaplayer.velocity.x, __G.mods.keaplayer.velocity.z) > 5",
+   "msg": "release = glide (forward, sinking)"
+  },
+  {
+   "shot": "k3-glide"
+  },
+  {
+   "hold": "sprint",
+   "ms": 700
+  },
+  {
+   "assert": "__G.mods.keaplayer.velocity.y < -3",
+   "msg": "Shift = dive"
+  },
+  {
+   "hold": "back",
+   "ms": 6000
+  },
+  {
+   "eval": "JSON.stringify({m: __G.mods.keaplayer.mode, p: __G.mods.keaplayer.position.toArray().map(v=>+v.toFixed(2)), ev: __ev})"
+  },
+  {
+   "assert": "__G.mods.keaplayer.grounded && __ev.includes('kea:land')",
+   "msg": "flare + auto-land (kea:land)"
+  },
+  {
+   "eval": "(() => { const K = __G.mods.keaplayer; K.teleport([11.85, 1.3, 0.95], Math.PI); K.pitch = -0.35; return K.mode + ' ' + K.position.y.toFixed(3) + ' perched=' + K.perched; })()"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "eval": "JSON.stringify({t: __G.mods.keaplayer.pullTarget && __G.mods.keaplayer.pullTarget.kind, perched: __G.mods.keaplayer.perched, y: __G.mods.keaplayer.position.y})"
+  },
+  {
+   "assert": "__G.mods.keaplayer.perched && __G.mods.keaplayer.pullTarget && __G.mods.keaplayer.pullTarget.kind === 'wiper'",
+   "msg": "perched on van C bonnet, wiper in reach"
+  },
+  {
+   "eval": "__G.mods.vans.list[2].integrity",
+   "as": "i0"
+  },
+  {
+   "eval": "__input.hold('fire', 3600)"
+  },
+  {
+   "wait": 1300
+  },
+  {
+   "assert": "__G.mods.keaplayer.pulling > 0.3 && __ev.includes('kea:pull:start')",
+   "msg": "pulling progresses"
+  },
+  {
+   "shot": "k4-pull"
+  },
+  {
+   "wait": 2600
+  },
+  {
+   "eval": "JSON.stringify({c: __G.mods.keaplayer.carrying && __G.mods.keaplayer.carrying.kind, i: __G.mods.vans.list[2].integrity, ev: __ev.slice(-4)})"
+  },
+  {
+   "assert": "__G.mods.keaplayer.carrying && __G.mods.keaplayer.carrying.kind === 'wiper' && __ev.includes('kea:pull:done') && __G.mods.vans.list[2].integrity < __pt.i0 - 0.05",
+   "msg": "pull done \u2192 carry the wiper, van damaged"
+  },
+  {
+   "shot": "k5-carry"
+  },
+  {
+   "press": "aim"
+  },
+  {
+   "wait": 150
+  },
+  {
+   "assert": "__ev.includes('kea:squawk') && __G.mods.keaplayer.squawkCooldown > 5",
+   "msg": "squawk + cooldown"
+  },
+  {
+   "shot": "k6-squawk"
+  },
+  {
+   "eval": "(() => { const K = __G.mods.keaplayer; K.knock(__G.camera.position.clone().set(18, 1, 0)); return K.mode; })()"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "assert": "__G.mods.keaplayer.tumble > 0 && !__G.mods.keaplayer.carrying && __ev.includes('kea:tumble') && __ev.includes('kea:drop')",
+   "msg": "knocked into a tumble, part dropped"
+  },
+  {
+   "shot": "k7-tumble"
+  },
+  {
+   "wait": 1600
+  },
+  {
+   "assert": "__G.mods.keaplayer.offended === 1 && __G.mods.keaplayer.tumble === 0 && __ev.includes('kea:offended')",
+   "msg": "recover offended"
+  },
+  {
+   "eval": "(() => { const K = __G.mods.keaplayer; K.teleport([0, 10, -6], -Math.PI / 2); return K.mode; })()"
+  },
+  {
+   "wait": 200
+  },
+  {
+   "assert": "__G.mods.keaplayer.flying",
+   "msg": "teleported in the air = flying"
+  },
+  {
+   "wait": 9000
+  },
+  {
+   "eval": "JSON.stringify({m: __G.mods.keaplayer.mode, p: __G.mods.keaplayer.position.toArray().map(v=>+v.toFixed(2))})"
+  },
+  {
+   "assert": "__G.mods.keaplayer.grounded && __G.mods.keaplayer.position.x > 6",
+   "msg": "glide east and land somewhere"
+  },
+  {
+   "eval": "(() => { const K = __G.mods.keaplayer; K.enabled = false; return 1; })()"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "assert": "!__G.mods.keaplayer.overlay.scene.visible",
+   "msg": "disabled \u2192 overlay hidden"
+  }
+ ]
+}
