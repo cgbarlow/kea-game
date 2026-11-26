@@ -46,14 +46,14 @@ export function create(G, { blower } = {}) {
   G.on('ready', () => (async () => {
     // 1) gameplay banks (blower, creatures, quake, ambience) + the few cookbook presets we borrow
     const jobs = [...recipeJobs({ sr: 32000 }), ...presetJobs({ sr: 32000, only: COOKBOOK_SFX })];
-    const res = await runJobs(jobs.map((jb) => jb.gen), { budgetMs: 5 });
+    const res = await runJobs(jobs.map((jb) => jb.gen), { budgetMs: 4, perFrame: true });
     mixer.addBank(toBank(jobs, res));
     await mixer.setEnv('outdoor');
     A.ready = true;
     whenRunning(startBeds);
     // 2) the score (pad + bass stems, our pluck line, end stings)
     const sj = scoreJobs({ sr: 22050 });
-    const sr = await runJobs(sj.map((jb) => jb.gen), { budgetMs: 5 });
+    const sr = await runJobs(sj.map((jb) => jb.gen), { budgetMs: 4, perFrame: true });
     stems = {};
     sj.forEach((jb, i) => { const buf = toAudioBuffer(mixer.ctx, sr[i]); if (jb.stem) stems[jb.name] = buf; else mixer.addBank({ [jb.name]: [buf] }); });
     A.musicReady = true;

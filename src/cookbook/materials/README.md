@@ -10,9 +10,9 @@ variation, rain wetness, beads, dust, snow, edge wear and specular AA. No image 
 | `library.js` | `initMaterials(G)`, `makeMaterial(name, opts) → MeshStandardMaterial`, `getSurfaceSet(name, opts)`, `MATERIAL_NAMES` |
 | `bake.js` | `bakeSurface(renderer, {surf, lib?, size=1024, scale=1, depth=0.01, params={}, key?}) → {map, normalMap, roughnessMap, metalnessMap, aoMap, dispose()}`, `BAKE_SIZE`, `SURF_STRUCT`, `clearBakeCache()`, `bakeCacheSize()`, `rebakeAll(renderer)` (each set also has `rebake()`) |
 | `surfaces.glsl.js` | `SURFACES[name] = {glsl, scale, depth, tint, porosity, emissive?, ground?, note}`, `SURF_LIB` (helpers), `SURFACE_NAMES` |
-| `weathering.js` | `initWeathering(G)`, `setWeather({wet,dust,snow,macro,ground,specAA})`, `patchWeathering(mat, opts)`, `patchSpecAA(mat)`, `WEATHER_PRESETS` (prop / ground / sheltered), `W` (shared uniforms), `ensureWorldVaryings(shader)`, `ensureNoise(shader)` |
+| `weathering.js` | (low tier: `patchWeathering` defaults to `lite` — 1 noise octave, no edge wear/streaks/beads/snow lumps — and `specAA:false`) `initWeathering(G)`, `setWeather({wet,dust,snow,macro,ground,specAA})`, `patchWeathering(mat, opts)`, `patchSpecAA(mat)`, `WEATHER_PRESETS` (prop / ground / sheltered), `W` (shared uniforms), `ensureWorldVaryings(shader)`, `ensureNoise(shader)` |
 | `triplanar.js` | `patchTriplanar(mat, scaleMeters=2, {blend=0.6, sharp=4})` |
-| `noise.glsl.js` | `NOISE_GLSL`: pcg3d hash, `vnoise[P]`, `gnoise[P]`, `fbm[P]`, `ridged[P]`, `voronoi[P]` (F1, F2, edge, id), `voronoiF1`, `vnoise3`, `fbm3`, `ign`. `*P` = periodic. Include-guarded. |
+| `noise.glsl.js` | `NOISE_GLSL`: pcg3d hash (`vnoise3` uses a cheaper lattice key + lowbias32 mix: 19 imul instead of 72), `vnoise[P]`, `gnoise[P]`, `fbm[P]`, `ridged[P]`, `voronoi[P]` (F1, F2, edge, id), `voronoiF1`, `vnoise3`, `fbm3`, `ign`. `*P` = periodic. Include-guarded. |
 
 Surfaces (metres per tile): asphalt 2, concrete 4 (2 m slabs), painted_metal 2, rust 1, corrugated 2 (0.29 m pitch),
 galvanised 1 (2.5 cm spangle), wood_planks 2 (0.2 m boards, knots), weathered_wood 2 (0.25 m × 2 m boards), tarp 1, plastic 1, rubber 0.5, rock 4, sand 2,

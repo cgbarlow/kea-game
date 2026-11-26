@@ -47,7 +47,10 @@ export const WEATHER_PRESETS = {
   sheltered: { wet: 0, snow: 0, beads: 0, dust: 0.5 },
 };
 
+// Low tier defaults every patchWeathering call (library + finalize) to the lite variant without specular AA.
+let LOW = false;
 export function initWeathering(G) {
+  LOW = !!(G && G.quality && G.quality.tier === 'low');
   const s = (G && G.ART && G.ART.surface) || {};
   setWeather({ wet: s.wet ?? 0, dust: s.dust ?? 0, snow: s.snow ?? 0, macro: s.macroVar ?? 0.25 });
   return W;
@@ -104,8 +107,13 @@ const WEATHER_FRAG = /*glsl*/`
 #ifdef MAT_TRIPLANAR
   wH = matTpH;
 #endif
-  // 1. macro variation
+  // 1. macro variation (WTH_LITE, low tier: one noise octave feeds all three macro terms)
+#ifdef WTH_LITE
+  float mA = vnoise3(wP * 0.11), mB = fract(mA * 7.31 + 0.37), mC = fract(mA * 3.17 + 0.71);
+  mB = mix(0.5, mB, 0.6); mC = mix(0.5, mC, 0.6);
+#else
   float mA = vnoise3(wP * 0.11), mB = vnoise3(wP * 0.37 + 17.0), mC = vnoise3(wP * 1.7 + 5.0);
+#endif
   float mk = uMacro * uWthB.z;
   diffuseColor.rgb *= 1.0 + mk * (mA * 0.6 + mB * 0.4 - 0.5) * 0.8;
   diffuseColor.rgb *= mix(vec3(1.0), vec3(1.07, 1.0, 0.9), clamp((mB - 0.5) * 3.0 * mk, -1.0, 1.0));
@@ -113,6 +121,7 @@ const WEATHER_FRAG = /*glsl*/`
   diffuseColor.rgb *= 1.0 - grime * 0.5;
   roughnessFactor = clamp(roughnessFactor * (1.0 + mk * (mB - 0.5) * 0.6) + grime * 0.08, 0.0, 1.0);
   // 2. edge wear (curvature in 1/m from derivatives; ~1/radius on bevels)
+#ifndef WTH_LITE
   if (uWthA.w > 0.0) {
     float curv = length(fwidth(wN)) / max(length(fwidth(wP)), 1e-5);
     float edge = smoothstep(20.0, 60.0, curv) * smoothstep(0.4, 0.62, mC * 0.6 + vnoise3(wP * 14.0) * 0.4) * uWthA.w;
@@ -121,6 +130,7 @@ const WEATHER_FRAG = /*glsl*/`
     roughnessFactor = mix(roughnessFactor, 0.35, edge * 0.6);
     metalnessFactor = mix(metalnessFactor, 1.0, edge * uWthB.w);
   }
+#endif
   // 3. dust
   float dust = clamp(uDust * uWthA.y * (smoothstep(0.05, 0.8, wN.y + (mB - 0.5) * 0.6) * (0.7 + 0.9 * mC) + (0.55 - wH) * 0.8), 0.0, 1.0);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.40, 0.35, 0.29) * (0.85 + 0.3 * mC), dust);
@@ -131,8 +141,12 @@ const WEATHER_FRAG = /*glsl*/`
   float expo = smoothstep(-0.4, -0.05, wN.y);
   vec3 wT = normalize(vec3(-wN.z, 0.0, wN.x) + vec3(1e-4, 0.0, 0.0));
   float sh = dot(wP, wT);
+#ifdef WTH_LITE
+  float st = 0.35;
+#else
   float st = vnoise3(vec3(sh * 8.0, wP.y * 0.6, 3.1)) * vnoise3(vec3(sh * 27.0, wP.y * 1.4, 9.7));
   st = smoothstep(0.1, 0.4, st) * smoothstep(0.25, 0.65, vnoise3(vec3(sh * 1.3, wP.y * 0.22, 1.7)));
+#endif
   float Wt = uWet * uWthA.x * expo;
   float wet = Wt * mix(0.55 + 0.45 * st, 0.9 + 0.25 * (mA - 0.5), up);
   float band = (1.0 - smoothstep(0.0, 0.55, wP.y - uWthGround)) * (1.0 - up);
@@ -155,6 +169,7 @@ const WEATHER_FRAG = /*glsl*/`
   normal = normalize(mix(normal, nonPerturbedNormal, film));
   matNLen = mix(matNLen, 1.0, film);
   // 5. beads (branch on uniforms only, so derivatives inside stay defined)
+#ifndef WTH_LITE
   if (uWet * uWthA.x * uWthB.y > 0.01) {
     float bf = clamp(1.0 - length(fwidth(wP)) * 150.0, 0.0, 1.0);
     vec3 aN = abs(wN);
@@ -173,6 +188,7 @@ const WEATHER_FRAG = /*glsl*/`
     roughnessFactor = mix(roughnessFactor, 0.04, bead);
     diffuseColor.rgb *= 1.0 - 0.15 * bead * poro;
   }
+#endif
   // 6. snow
   float cover = wN.y * 1.25 - 0.2 + (mB - 0.5) * 0.5 + (0.5 - wH) * 0.6;
   float snowE = cover + uSnow * uWthA.z * 1.6 - 1.6;
@@ -184,6 +200,7 @@ const WEATHER_FRAG = /*glsl*/`
   metalnessFactor *= 1.0 - snowA;
   normal = normalize(mix(normal, nonPerturbedNormal, snowA * 0.85));
   // soft world-space lumps in the snow layer so it is not a flat white sheet (gradient of cheap 3D noise)
+#ifndef WTH_LITE
   if (uSnow * uWthA.z > 0.001) {
     vec3 sp = wP * 6.0;
     float n0 = vnoise3(sp);
@@ -191,6 +208,7 @@ const WEATHER_FRAG = /*glsl*/`
     vec3 gv = (viewMatrix * vec4(g - wN * dot(g, wN), 0.0)).xyz;
     normal = normalize(normal - gv * 1.6 * snowA);
   }
+#endif
 }
 `;
 
@@ -218,18 +236,23 @@ export function patchSpecAA(material) {
 /**
  * @param material MeshStandardMaterial / MeshPhysicalMaterial
  * @param o { preset?: 'prop'|'ground'|'sheltered', wet=1, dust=1, snow=1, edge=0, porosity=0.8, beads=1, macro=1,
- *          edgeMetal=0, specAA=true }
+ *          edgeMetal=0, specAA=true (false on low), lite=false (true on low) }
+ *          lite: compile-time cheap variant (low tier): 1 noise octave instead of ~10, no edge wear / streaks / beads /
+ *          snow lumps. Same uniforms and look family; detail layers are what a 0.6-scale low-tier frame cannot resolve.
  *          (multipliers on the shared uWet/uDust/uSnow/uMacro amounts)
  */
 export function patchWeathering(material, o = {}) {
   if (o.preset) o = { ...(WEATHER_PRESETS[o.preset] || {}), ...o };
+  // low tier (set by initWeathering): lite variant, no specular AA (~1 ms/MP of derivative maths; FXAA covers it)
+  o = { lite: LOW, specAA: !LOW, ...o };
   const a = new Vector4(o.wet ?? 1, o.dust ?? 1, o.snow ?? 1, o.edge ?? 0);
   const b = new Vector4(o.porosity ?? 0.8, o.beads ?? 1, o.macro ?? 1, o.edgeMetal ?? 0);
   const ua = { value: a }, ub = { value: b };
   material.userData.wth = { a, b };
-  patch(material, 'wth', (shader) => {
+  patch(material, o.lite ? 'wth-lite' : 'wth', (shader) => {
     ensureWorldVaryings(shader);
     ensureNoise(shader);
+    if (o.lite) shader.fragmentShader = '#define WTH_LITE\n' + shader.fragmentShader;
     shader.uniforms.uWthA = ua; shader.uniforms.uWthB = ub;
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform vec4 uWthA;\nuniform vec4 uWthB;')

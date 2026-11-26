@@ -6,6 +6,8 @@
 // Every module stage is non-critical with a stub (src/modules/_stub.js) so the game boots with any subset done.
 // Module results are registered on G.mods[name] so modules can find late-booting peers lazily (e.g. blower → fx).
 // Owner: lead/integrator. Module owners never edit this file; they report needed wiring changes.
+import './perf/lightcull.js'; // perf: skip zero-contribution lights per fragment (bit-identical output)
+import { uniqueInstancedGeometry } from './perf/vao.js';
 import { MeshStandardMaterial, Color } from 'three';
 import { createCore } from './cookbook/engine/core.js';
 import { createBoot } from './cookbook/engine/boot.js';
@@ -113,7 +115,7 @@ async function main() {
       lights.add({ position: p, kind: 'pole', intensity: on ? LK.pole : 0.01, real: on, pool: on, halo: on, emissive: on ? undefined : (LK.poleEmissive ?? 0.15), groundY: 0, color: [0.9, 0.95, 1.0] });
     }
     if (A.shelterLamp) { // the batten is the visible fixture; the light sits 0.35 m under it so the ceiling gets no hotspot
-      const sp = A.shelterLamp, it = lights.add({ position: [sp[0], sp[1] - 0.35, sp[2]], kind: 'none', halo: false, pool: false, intensity: LK.shelter ?? 18, groundY: 0, color: [0.85, 0.95, 1.0] });
+      const sp = A.shelterLamp, it = lights.add({ position: [sp[0], sp[1] - 0.35, sp[2]], kind: 'none', real: false /* perf: any real PointLight costs ~100 ms/frame on Apple M4 in this uber-shader; shelter is lit by tube emissive + interior probe */, halo: false, pool: false, intensity: LK.shelter ?? 18, groundY: 0, color: [0.85, 0.95, 1.0] });
       it.group.visible = true; it.group.traverse((m) => { if (m.isMesh) m.visible = false; });
     }
     for (const f of A.flashers || []) lights.add({ position: f, kind: 'fixture', real: false, haloSize: 0.5, intensity: LK.flasher ?? 8, groundY: 0, color: [1.0, 0.45, 0.05], flicker: 0.6 });
@@ -125,13 +127,13 @@ async function main() {
   const vans = await stage('vans', () => Vans.create(G, { mats, colliders: world.colliders }), { msg: 'Parking the campervans', at: 0.52 });
   await stage('shadows', () => {
     fitSunShadow(G, casterBounds(world.root), G.quality.settings.shadow);
-    return own(createShadowScheduler(G, { mode: 'dynamic', every: 2 }));
+    return own(createShadowScheduler(G, { mode: 'dynamic', every: G.quality.tier === 'low' ? 4 : 2 })); // perf: low re-renders the caster pass every 4th frame (15 Hz at 60 fps)
   }, { msg: 'Casting shadows', at: 0.56 });
   const blower = await stage('blower', () => Blower.create(G, { input }), { msg: 'Fuelling the blower (2-stroke, 50:1)', at: 0.6 });
   const kea = await stage('kea', () => Kea.create(G, { vans, blower }), { msg: 'Counting kea (inconclusive)', at: 0.63 });
   const possums = await stage('possums', () => Possums.create(G, { vans, blower, traps: A.traps || [] }), { msg: 'Setting the trap boxes', at: 0.66 });
 
-  const fx = await stage('fx', () => { const f = createFX(G); f.setGround(WORLD.groundY, terrain.heightAt); f.prewarm(2); return own(f); }, { msg: 'Priming the pools', at: 0.7 });
+  const fx = await stage('fx', () => { const f = createFX(G, { lights: 0 }); /* perf: a leaf blower has no muzzle flash; parked fx PointLights cost shader registers */ f.setGround(WORLD.groundY, terrain.heightAt); f.prewarm(2); return own(f); }, { msg: 'Priming the pools', at: 0.7 });
   const weather = await stage('weather', () => {
     const w = { snow: null, dust: null };
     if (wx.particles === false) return own(w); // look r2: flakes/motes read as stars and dead pixels; snow lives on the ground
@@ -171,6 +173,7 @@ async function main() {
 
   finalizeMaterials(G, G.scene);
   stabiliseCutouts(G.scene);
+  G.vaoSplit = uniqueInstancedGeometry(G.scene); // perf: per-mesh VAO cache hits for shared scatter geometry
   G.camera.position.fromArray(POSES[0]); G.camera.lookAt(POSES[0][3], POSES[0][4], POSES[0][5]);
   // every shader permutation the shift can reveal later (actors hidden until spawned, FX pools, blower overlay):
   // the in-scene originals are forced visible by the warm-up; the proxies cover plain + instanced variants

@@ -78,7 +78,7 @@ export function create(G, { mats, colliders = [] }) {
     };
     box(0, -(DIM.nose + DIM.rear) / 2 + 0.03, DIM.bodyW + 0.1, DIM.nose - DIM.rear + 0.12, L.van.h);
     for (const p of props) box(...p);
-    const light = lights?.add?.({ position: local(0, 1.985, -1.85).toArray(), kind: 'none', halo: false, pool: false, intensity: 2.6, range: 3.2, color: [1.0, 0.66, 0.36], groundY: 0 }) || null;
+    const light = lights?.add?.({ position: local(0, 1.985, -1.85).toArray(), kind: 'none', real: false /* perf: 3 cabin PointLights tipped the shader over an Apple-GPU register cliff (≈150 ms → ≈30 ms) */, halo: false, pool: false, intensity: 2.6, range: 3.2, color: [1.0, 0.66, 0.36], groundY: 0 }) || null;
     const hw = DIM.bodyW / 2, df = (DIM.door.f0 + DIM.door.f1) / 2;
     const van = {
       id: d.id, name: d.name, group: g, pos: new Vector3(d.x, 0, d.z), yaw: d.yaw, integrity: 1, lastHit: -99, lastKind: '', doorOpen: false, light,

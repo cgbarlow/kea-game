@@ -10,6 +10,7 @@ emit('prerender') → scene → HalfFloat MSAA(0/2/4) + DepthTexture        [ful
   → [zFull: current-frame full-res linear depth R32F]   (only when post.transparent / posttransparent / params.zFull)
   → [after-opaque: emit('posttransparent') + post.transparent drawn into the HDR target, depth-tested]
   → linear depth R32F (half) → SSAO (8/12/16 taps) → bilateral H+V (half)
+  (low tier: no AO, no shafts, no half-res depth pass, composite skips the upsample; bloom levels = TIERS bloomMips 4/5/6)
   → volumetric shafts: 16-24 IGN-jittered steps through G.sun.light.shadow.map → bilateral H+V (half)
       atmos mode (lighting/atmos installed): only the shadowed-sun correction of the analytic fog, see below
   → composite: joint-bilateral upsample, AO weighted toward dim pixels, col*T + inscatter (full HDR)

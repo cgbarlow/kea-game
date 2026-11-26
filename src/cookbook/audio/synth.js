@@ -353,7 +353,12 @@ const tick = typeof MessageChannel !== 'undefined'
   : (fn) => setTimeout(fn, 0);
 
 // jobs: array of generators (from render()/renderIR()/stem jobs). Resolves to their return values in order.
-export function runJobs(jobs, { budgetMs = 6, onProgress } = {}) {
+//   perFrame: true = at most one slice per animation frame (run right after the frame, so it never delays the next
+//   rAF). Use it for anything rendered during gameplay: back-to-back slices stole the main thread from a GPU-bound
+//   frame loop and doubled frame times for the ~10 s the post-ready banks took.
+const frameTick = (fn) => requestAnimationFrame(() => setTimeout(fn, 0));
+export function runJobs(jobs, { budgetMs = 6, onProgress, perFrame = false } = {}) {
+  const next = perFrame && typeof requestAnimationFrame !== 'undefined' ? frameTick : tick;
   return new Promise((resolve, reject) => {
     const results = new Array(jobs.length);
     let k = 0;
@@ -367,9 +372,9 @@ export function runJobs(jobs, { budgetMs = 6, onProgress } = {}) {
           }
         }
       } catch (e) { reject(e); return; }
-      if (k < jobs.length) tick(slice); else resolve(results);
+      if (k < jobs.length) next(slice); else resolve(results);
     };
-    tick(slice);
+    next(slice);
   });
 }
 

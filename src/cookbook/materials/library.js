@@ -110,7 +110,8 @@ export function makeMaterial(name, o = {}) {
     const wo = typeof o.weather === 'string' ? { preset: o.weather } : (o.weather || {});
     const preset = WEATHER_PRESETS[wo.preset ?? (def.ground ? 'ground' : 'prop')] || {};
     const edgeDefault = /painted|corrugated|plastic/.test(name) ? 0.6 : 0;
-    // low tier: skip rain beads (the only per-pixel Voronoi); branch is on a uniform, so it costs nothing when off
+    // low tier: skip rain beads (the only per-pixel Voronoi). patchWeathering also defaults to its lite variant
+    // without specular AA on low (initWeathering reads the tier).
     const lowBeads = TIER === 'low' ? { beads: 0 } : {};
     const { preset: _p, ...explicit } = wo;
     patchWeathering(mat, { porosity: def.porosity, edge: edgeDefault, beads: 1, ...preset, ...lowBeads, ...explicit });

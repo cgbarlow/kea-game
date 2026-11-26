@@ -124,11 +124,18 @@ vec2 voronoiF1(vec2 p, float jitter, float s) {
 }
 
 // ---- 3D runtime noise (world space, non periodic) ---------------------------------------------------
+// perf: runtime patches call this ~10x per pixel. One linear lattice key (3 imul) + a 2-multiply lowbias32 finaliser
+// per corner = 19 integer multiplies instead of 8 full pcg3d (72); 32-bit imul is a slow path on Apple/mobile GPUs.
+uint nzMix(uint h) { h ^= h >> 16u; h *= 0x7feb352du; h ^= h >> 15u; h *= 0x846ca68bu; h ^= h >> 16u; return h; }
+float nzU(uint h) { return float(nzMix(h) >> 8u) * (1.0 / 16777216.0); }
 float vnoise3(vec3 p) {
   ivec3 i = ivec3(floor(p)); vec3 f = fract(p);
   vec3 u = f * f * (3.0 - 2.0 * f);
-  float a = hash3i(i).x, b = hash3i(i + ivec3(1, 0, 0)).x, c = hash3i(i + ivec3(0, 1, 0)).x, d = hash3i(i + ivec3(1, 1, 0)).x;
-  float e = hash3i(i + ivec3(0, 0, 1)).x, g = hash3i(i + ivec3(1, 0, 1)).x, h = hash3i(i + ivec3(0, 1, 1)).x, k = hash3i(i + ivec3(1, 1, 1)).x;
+  const uint KX = 0x8da6b343u, KY = 0xd8163841u, KZ = 0xcb1ab31fu;
+  uint b0 = uint(i.x) * KX + uint(i.y) * KY + uint(i.z) * KZ;
+  float a = nzU(b0), b = nzU(b0 + KX), c = nzU(b0 + KY), d = nzU(b0 + KX + KY);
+  uint b1 = b0 + KZ;
+  float e = nzU(b1), g = nzU(b1 + KX), h = nzU(b1 + KY), k = nzU(b1 + KX + KY);
   return mix(mix(mix(a, b, u.x), mix(c, d, u.x), u.y), mix(mix(e, g, u.x), mix(h, k, u.x), u.y), u.z);
 }
 float fbm3(vec3 p, int oct) {

@@ -276,9 +276,11 @@ void main() {
   // scrub NaN/Inf before they poison bloom + adaptation (half float max is 65504)
   if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
   col = min(col, vec3(60000.0));
-  float z = linDepth(texelFetch(tDepth, p, 0).r, uNF);
-  float ao; vec4 vol;
-  upsample(vUv, z, ao, vol);
+  float ao = 1.0; vec4 vol = vec4(0.0, 0.0, 0.0, 1.0);
+  if (uAO > 0.0 || uVol > 0.0) { // (uniform branch: low tier has neither, and then no half-res depth either)
+    float z = linDepth(texelFetch(tDepth, p, 0).r, uNF);
+    upsample(vUv, z, ao, vol);
+  }
   if (uAO > 0.0) {
     // AO "mostly on ambient": we have no separate ambient buffer, so judge by displayed brightness —
     // sun-lit pixels keep most of their light, shadowed/ambient pixels take the full occlusion.

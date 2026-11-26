@@ -19,12 +19,13 @@ import {
   finalFrag, BYPASS, DEBUG,
 } from './shaders.js';
 
-// Per-tier costs. AO off on low (biggest fill-rate saver after MSAA).
+// Per-tier costs. AO + volumetric shafts off on low (biggest fill-rate savers after MSAA; with lighting/atmos the
+// analytic fog keeps the haze, only the shadowed-sun shafts go).
 export const POST_TIERS = {
-  low:   { msaa: 0, ao: false, aoTaps: 8,  volSteps: 16 },
-  med:   { msaa: 2, ao: true,  aoTaps: 8,  volSteps: 16 },
-  high:  { msaa: 4, ao: true,  aoTaps: 12, volSteps: 20 },
-  ultra: { msaa: 4, ao: true,  aoTaps: 16, volSteps: 24 },
+  low:   { msaa: 0, ao: false, aoTaps: 8,  volSteps: 16, vol: false },
+  med:   { msaa: 2, ao: true,  aoTaps: 8,  volSteps: 16, vol: true },
+  high:  { msaa: 4, ao: true,  aoTaps: 12, volSteps: 20, vol: true },
+  ultra: { msaa: 4, ao: true,  aoTaps: 16, volSteps: 24, vol: true },
 };
 
 // Defaults used when the game's ART omits a field (matches CONTRACT.md's example ART).
@@ -279,10 +280,11 @@ export function createPost(G, opts = {}) {
       return;
     }
 
-    fs.pass(mDepth, zHalf);
-
-    // 3) SSAO
+    // 3) SSAO (+ 4) volumetrics) — both read the half-res linear depth; skip that pass when neither runs (low)
     const doAO = P.ao && tier.ao;
+    const useAtm = P.volMode !== 'standalone' && atmosNow();
+    const doVol = P.vol && tier.vol !== false && (useAtm ? P.volShaft > 0 : P.volDensity > 0);
+    if (doAO || doVol || dbg) fs.pass(mDepth, zHalf);
     if (doAO) {
       const u = mAO.uniforms;
       u.uFar.value = cam.far; u.uRadius.value = P.aoRadius; u.uIntensity.value = P.aoIntensity; u.uBias.value = P.aoBias;
@@ -291,8 +293,6 @@ export function createPost(G, opts = {}) {
     }
 
     // 4) volumetric shafts
-    const useAtm = P.volMode !== 'standalone' && atmosNow();
-    const doVol = P.vol && (useAtm ? P.volShaft > 0 : P.volDensity > 0);
     if (doVol) {
       const u = mVol.uniforms, sh = light && light.shadow;
       if (useAtm) bindAtmos();
@@ -339,10 +339,13 @@ export function createPost(G, opts = {}) {
 
     // 6) bloom down chain (always run: the adaptation meter reads level 2)
     thresh.set(P.bloomThreshold, Math.max(1e-3, P.bloomKnee * P.bloomThreshold), 0);
+    // levels per tier (engine TIERS bloomMips: low 4, med 5, high/ultra 6): every level is two tiny render passes,
+    // and on tile-based GPUs (Apple, mobile) a pass costs a fixed ~0.1-0.3 ms however small its target is
+    const NB = Math.max(3, Math.min(BLOOM_LEVELS, G.quality.settings?.bloomMips || BLOOM_LEVELS));
     {
       const u = mDown.uniforms;
       let src = hdr;
-      for (let i = 0; i < BLOOM_LEVELS; i++) {
+      for (let i = 0; i < NB; i++) {
         u.tSrc.value = src.texture; u.uTexel.value.set(1 / src.width, 1 / src.height); u.uFirst.value = i === 0 ? 1 : 0;
         fs.pass(mDown, down[i]);
         src = down[i];
@@ -363,8 +366,8 @@ export function createPost(G, opts = {}) {
     if (P.bloom) {
       const u = mUp.uniforms;
       u.uScatter.value = P.bloomScatter;
-      for (let i = BLOOM_LEVELS - 2; i >= 0; i--) {
-        const low = i === BLOOM_LEVELS - 2 ? down[BLOOM_LEVELS - 1] : up[i + 1];
+      for (let i = NB - 2; i >= 0; i--) {
+        const low = i === NB - 2 ? down[NB - 1] : up[i + 1];
         u.tLow.value = low.texture; u.tHigh.value = down[i].texture; u.uTexel.value.set(1 / low.width, 1 / low.height);
         fs.pass(mUp, up[i]);
       }

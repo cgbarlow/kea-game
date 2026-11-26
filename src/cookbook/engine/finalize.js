@@ -42,7 +42,7 @@ export function finalizeMaterials(G, root = G.scene, { atmos = true, weathering 
         patchAtmos(m, { additive }); r.atmos++;
       }
       const lit = m.isMeshStandardMaterial; // Physical extends Standard
-      if (weathering && lit && !m.userData.noWeather && !m.transparent && !additive && !keys.includes('wth') &&
+      if (weathering && lit && !m.userData.noWeather && !m.transparent && !additive && !keys.some((k) => k.startsWith('wth')) &&
           !keys.some((k) => OWN_WETNESS.test(k))) {
         const w = m.userData.weather;
         const opts = typeof w === 'object' && w ? w : { preset: typeof w === 'string' ? w : (GROUNDISH.test(o.name || m.name || '') ? 'ground' : 'prop') };

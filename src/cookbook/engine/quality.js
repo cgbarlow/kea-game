@@ -3,25 +3,32 @@
 //   const Q = createQuality(G);              // detects tier (unless ?q=), installs dynres + context guard
 //   ...build scene...
 //   await Q.warmup({ extras: [{ material: sparkMat, kind: 'points' }] });  // behind the loading screen
-//   G.markReady();                            // dynres ignores the first 5 s after this
+//   G.markReady();                            // dynres ignores the first 1.5 s after this
 //
 // Reads/writes G.quality = { tier, scale, settings, maxTier, pinned, pixelRatio, dynres:{...}, contextLosses }.
 // Emits G.emit('quality', G.quality, 'scale'|'tier') on change. 'contextrestored' is emitted by core.js; the guard here
 // listens to it (re-warm, clear the recorded loss) like every other GPU baker.
 //
 // Design rules (each one fixes a real failure seen in shipped browser games):
-//  - an early hitch must NEVER lock the session low: evidence before ready+5 s is ignored, single frames
-//    > 250 ms (tab switch, GC, compile) are dropped, and the tier climbs back up when the GPU has headroom;
-//  - scale moves in 0.05 steps in [tier.minScale (0.6-0.8), 1]; down needs 2 bad 1 s windows in a row, up needs 3
-//    good ones, and a step that failed in the last 10 s needs 8 (stops the vsync 60↔30 ping-pong);
-//  - "good" means p75 < 1.04 × budget, NOT "< 80 % of budget": on a vsync-locked display frames never go below
-//    the refresh interval, so an 80 % rule would never scale back up;
-//  - a tier change needs 3 s sustained at the floor scale (down) or 10 s of big headroom (p75 < 0.7 × budget) at
+//  - an early hitch must NEVER lock the session low: evidence before ready+1.5 s and windows with programs still
+//    compiling are ignored, single frames > max(250 ms, 2.5x p75) (tab switch, GC) are dropped, and the tier climbs back up when the GPU has headroom;
+//  - scale moves in 0.05 steps in [tier.minScale (0.6-0.8), 1]; down needs 2 bad 0.5 s windows in a row, up needs 3
+//    good ones, and a step that failed in the last 30 s needs 12 (stops the vsync 60↔30 ping-pong);
+//  - far over budget (p75 > 1.25x) one window is enough and the scale JUMPS (≈ scale*sqrt(0.75*budget/p75)); when even
+//    the floor cannot fit and p75 > 2x budget the tier drops at once (two tiers above 4x). 7 fps → settled in ~3 s;
+//  - "good" means p75 < 0.85 × budget with p90 < 1.3 × budget, OR vsync-locked (p50 ≈ budget, p90 < 1.1 × budget): on a
+//    vsync-locked display frames never go below the refresh interval, so a pure "< 85 %" rule would never scale up;
+//    "bad" also counts the tail (p90 > 1.5x, or > 3 % of frames over 1.7x budget, EMA ~2 s): GPU-bound browsers present
+//    a late frame as a 2x interval, and "good" needs < 1 % of those;
+//  - otherwise a tier change needs 3 windows sustained at the floor scale (down) or 10 s of big headroom (p75 < 0.7 × budget) at
 //    full scale (up), with >= 10 s between tier changes; a tier-up that gets undone within 60 s doubles the evidence
 //    needed next time (max 8×). The tier never rises above the detected/initial tier.
 //  - the settled tier/scale is saved to localStorage 15 s after ready, with a crash canary: a boot that never got
 //    there (crash/hang/GPU reset) starts one tier lower next time.
-import { Mesh, InstancedMesh, Points, BoxGeometry, BufferGeometry, Float32BufferAttribute, Object3D } from 'three';
+import {
+  Mesh, InstancedMesh, Points, BoxGeometry, BufferGeometry, Float32BufferAttribute, Object3D, WebGLRenderTarget, ShaderMaterial,
+  Scene, OrthographicCamera, DataTexture, RGBAFormat, UnsignedByteType, RepeatWrapping, LinearFilter, LinearMipmapLinearFilter,
+} from 'three';
 
 // Per-tier knobs other systems read via G.quality.settings (or switch on G.quality.tier directly).
 //  pixelCap: max drawing-buffer megapixels (after dpr*scale) · shadow: shadow map size · pcssTaps: PCF taps (0 = plain PCF)
@@ -30,7 +37,7 @@ import { Mesh, InstancedMesh, Points, BoxGeometry, BufferGeometry, Float32Buffer
 export const TIERS = {
 // Post-chain specifics (msaa, AO taps, vol steps actually used) are decided by POST_TIERS in post/pipeline.js;
 // the values here are what non-post systems should size themselves from. minScale = dynres floor for the tier.
-  low:   { pixelCap: 1.0, minScale: 0.6, shadow: 1024, pcssTaps: 0,  volSteps: 16, ao: false, bloomMips: 4, msaa: 0, aniso: 2,  particles: 0.4, drawDist: 0.6, lights: 2 },
+  low:   { pixelCap: 0.55, minScale: 0.6, shadow: 1024, pcssTaps: 0,  volSteps: 16, ao: false, bloomMips: 4, msaa: 0, aniso: 2,  particles: 0.4, drawDist: 0.6, lights: 2 },
   med:   { pixelCap: 1.5, minScale: 0.6, shadow: 2048, pcssTaps: 8,  volSteps: 16, ao: true,  bloomMips: 5, msaa: 2, aniso: 4,  particles: 0.7, drawDist: 0.8, lights: 4 },
   high:  { pixelCap: 2.3, minScale: 0.7, shadow: 2048, pcssTaps: 16, volSteps: 20, ao: true,  bloomMips: 6, msaa: 4, aniso: 8,  particles: 1.0, drawDist: 1.0, lights: 6 },
   ultra: { pixelCap: 3.7, minScale: 0.8, shadow: 4096, pcssTaps: 32, volSteps: 24, ao: true,  bloomMips: 6, msaa: 4, aniso: 16, particles: 1.3, drawDist: 1.2, lights: 8 },
@@ -40,7 +47,7 @@ const tierIdx = (t) => Math.max(0, TIER_ORDER.indexOf(t));
 
 // ---- tier detection -------------------------------------------------------------------------------------------
 // Conservative: unknown desktop GPUs get 'high'; 'ultra' is only ever chosen explicitly (?q=ultra or opts.allowUltra).
-export function detectTier(renderer, { allowUltra = false } = {}) {
+export function detectTier(renderer, { allowUltra = false, probe = false } = {}) {
   const gl = renderer.getContext();
   const ext = gl.getExtension('WEBGL_debug_renderer_info');
   const gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
@@ -55,7 +62,73 @@ export function detectTier(renderer, { allowUltra = false } = {}) {
   else if (allowUltra && /RTX\s?[3-5]0[6-9]0|RX\s?[6-9][7-9]00|Apple M\d (Max|Ultra)/i.test(gpu)) { tier = 'ultra'; reason = 'high-end GPU'; }
   if (mem <= 2 || cores <= 2) { tier = 'low'; reason += ', low memory/cores'; }
   else if (mem <= 4 && tierIdx(tier) > 1) { tier = 'med'; reason += ', <=4 GB'; }
-  return { tier, reason, gpu, mobile, deviceMemory: mem, cores };
+  // GPU names say little about fill rate (a base Apple M4 and an M4 Max both read 'Apple M4…'; integrated vs discrete
+  // is invisible behind ANGLE): a ~30 ms timed fill-rate probe caps the tier. Skipped for software/mobile (already low).
+  let probeMs = null;
+  if (probe && tier !== 'low') {
+    probeMs = gpuProbe(renderer);
+    const cap = probeMs == null ? tier : probeMs > PROBE_MS.med ? 'low' : probeMs > PROBE_MS.high ? 'med' : 'high';
+    if (tierIdx(cap) < tierIdx(tier)) { tier = cap; reason += `, gpu probe ${probeMs.toFixed(2)} ms`; }
+  }
+  return { tier, reason, gpu, mobile, deviceMemory: mem, cores, probeMs };
+}
+
+// ---- GPU fill-rate probe ------------------------------------------------------------------------------------------
+// Renders a 1024x1024 full-screen pass that looks like a lit, weathered material fragment (integer hashes, ALU,
+// 6 mip-mapped fetches) a few times and times it with a 1-pixel readPixels sync on each side. Returns the best-of-3 ms per pass, or null if it could not measure.
+// Calibration (1920x1080 game built on this cookbook, ~150 ms/frame on 'high'): a base Apple M4 (10-core) measures
+// ~2.7 ms. 'med' needs a GPU ~2.5x faster than that, 'high' ~7x (frame cost scales with the tier: low 1x,
+// med ~2.5x, high ~4-5x of low on the same GPU, and dynres covers the rest).
+export const PROBE_MS = { med: 1.1, high: 0.4 }; // probe ms above which the tier is capped to low / med
+const PROBE_FRAG = /*glsl*/`
+precision highp float;
+precision highp int;
+uniform sampler2D tTex;
+varying vec2 vUv;
+uvec3 pcg(uvec3 v) { v = v * 1664525u + 1013904223u; v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y; v ^= v >> 16u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y; return v; }
+void main() {
+  vec3 p = vec3(vUv * 37.0, 1.0), acc = vec3(0.0);
+  for (int k = 0; k < 12; k++) {
+    vec3 h = vec3(pcg(uvec3(ivec3(floor(p)))) >> 8u) * (1.0 / 16777216.0);
+    acc += h * fract(p.zxy) + sin(p * 1.7) * 0.1;
+    p = p * 1.31 + acc.yzx;
+  }
+  for (int k = 0; k < 6; k++) acc += texture2D(tTex, vUv * (1.0 + float(k) * 0.37) + acc.xy * 0.01).rgb;
+  gl_FragColor = vec4(acc * 0.05, 1.0);
+}`;
+export function gpuProbe(renderer, { size = 1024, passes = 4 } = {}) {
+  const gl = renderer.getContext();
+  let rt = null, mat = null, geo = null, tex = null;
+  try {
+    rt = new WebGLRenderTarget(size, size, { depthBuffer: false });
+    const d = new Uint8Array(256 * 256 * 4);
+    for (let i = 0; i < d.length; i++) d[i] = (i * 2654435761) >>> 24;
+    tex = new DataTexture(d, 256, 256, RGBAFormat, UnsignedByteType);
+    tex.wrapS = tex.wrapT = RepeatWrapping; tex.minFilter = LinearMipmapLinearFilter; tex.magFilter = LinearFilter; tex.generateMipmaps = true; tex.needsUpdate = true;
+    mat = new ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: PROBE_FRAG, uniforms: { tTex: { value: tex } }, depthTest: false, depthWrite: false });
+    geo = new BufferGeometry();
+    geo.setAttribute('position', new Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
+    geo.setAttribute('uv', new Float32BufferAttribute([0, 0, 2, 0, 0, 2], 2));
+    const scene = new Scene(), cam = new OrthographicCamera();
+    const m = new Mesh(geo, mat); m.frustumCulled = false; scene.add(m);
+    const prev = renderer.getRenderTarget();
+    const px = new Uint8Array(4);
+    const sync = () => { renderer.setRenderTarget(rt); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); };
+    renderer.setRenderTarget(rt); renderer.render(scene, cam); sync(); // compile + upload
+    let best = Infinity;
+    for (let run = 0; run < 3; run++) {
+      sync();
+      const t0 = performance.now();
+      for (let i = 0; i < passes; i++) renderer.render(scene, cam);
+      sync();
+      best = Math.min(best, (performance.now() - t0) / passes);
+    }
+    renderer.setRenderTarget(prev);
+    return Number.isFinite(best) ? best : null;
+  } catch (e) { return null; }
+  finally { rt?.dispose(); mat?.dispose(); geo?.dispose(); tex?.dispose(); }
 }
 
 // ---- main controller ------------------------------------------------------------------------------------------
@@ -63,19 +136,21 @@ export function createQuality(G, opts = {}) {
   const {
     budgetMs = 1000 / 60,       // frame budget the controller defends
     downMs = budgetMs * 1.25,   // p75 above this = over budget (≈20.8 ms)
-    upMs = budgetMs * 1.04,     // p75 below this = headroom for a scale step up (≈17.4 ms)
+    upMs = budgetMs * 0.85,     // p75 below this (+ p90 < 1.3x) = headroom for a scale step up (≈14.2 ms); see "locked"
     tierUpMs = budgetMs * 0.7,  // p75 below this at scale 1 = headroom for a tier step up
     maxScale = 1, step = 0.05,
     storageKey = 'onefile.quality.v1', // null disables persistence + canary
-    ignoreAfterReadyS = 5,      // early hitches (compile, first PMREM, GC) are not evidence
-    windowS = 1,                // evaluation window
+    ignoreAfterReadyS = 1.5,    // early hitches (compile, first PMREM, GC) are not evidence (windows with programs
+                                // still compiling are skipped too, so this only needs to cover the first frames)
+    windowS = 0.5,              // evaluation window (closes after >= 8 frames, or >= 3 frames once 1.5 s passed)
+    probe = true,               // GPU fill-rate probe caps the detected tier (auto mode only, see detectTier; ?gpuprobe=0 off)
     applyPixelRatio = true,     // false = the post pipeline reads G.quality.scale itself and sizes its targets
     allowUltra = false,
   } = opts;
   const p = G.params;
-  const det = detectTier(G.renderer, { allowUltra });
   const forced = p.get('q');
   const shot = !!p.get('shot');
+  const det = detectTier(G.renderer, { allowUltra, probe: probe && p.get('gpuprobe') !== '0' && !shot && !TIERS[forced] && !TIERS[opts.tier] });
   const Q = G.quality;
   Q.detected = det;
   Q.tier = TIERS[forced] ? forced : (TIERS[opts.tier] ? opts.tier : det.tier);
@@ -94,9 +169,10 @@ export function createQuality(G, opts = {}) {
   Q.pinned = !!TIERS[forced];               // ?q= pins the tier (scale may still move)
   Q.settings = TIERS[Q.tier];
   Q.scale = saved && saved.tier === Q.tier && saved.scale >= Q.settings.minScale ? Math.min(1, saved.scale) : 1;
+  if (+p.get('scale') > 0) Q.scale = Math.min(1, Math.max(0.25, +p.get('scale'))); // ?scale=0.7: start scale (tests; dynres may still move it)
   Q.contextLosses = 0;
   const dynOn = !shot && p.get('dynres') !== '0' && opts.dynres !== false;
-  const D = Q.dynres = { on: dynOn, p75: 0, avg: 0, over: 0, under: 0, floorWindows: 0, headroomWindows: 0, history: [] };
+  const D = Q.dynres = { on: dynOn, p75: 0, p90: 0, miss: 0, avg: 0, over: 0, under: 0, floorWindows: 0, headroomWindows: 0, history: [] };
 
   // ---- applying scale ----
   // G.dpr becomes min(device dpr, tier pixel cap) — "the dpr actually used" (CONTRACT). Then:
@@ -133,7 +209,7 @@ export function createQuality(G, opts = {}) {
     if (!TIERS[t] || t === Q.tier) return;
     Q.tier = t; Q.settings = TIERS[t];
     apply(); log(reason, p75);
-    lastTierChange = now(); settleUntil = now() + 2000; // new tier = new shaders/targets: let it settle
+    lastTierChange = now(); settleUntil = now() + 1000; // new tier = new targets (+ post programs): let it settle
     G.emit('quality', Q, 'tier');
   };
 
@@ -157,6 +233,7 @@ export function createQuality(G, opts = {}) {
   };
   const mean = () => { let s = 0; const m = Math.min(n, N); for (let i = 0; i < m; i++) s += ring[i]; return s / Math.max(1, m); };
   const stepIndex = (s) => Math.max(0, Math.round((s - 0.6) / step)); // failure-memory slot per 0.05 step
+  const compiling = () => { const ps = G.renderer.info.programs || []; for (const pr of ps) if (pr.isReady && !pr.isReady()) return true; return false; };
 
   function update() {
     const t = now();
@@ -169,31 +246,66 @@ export function createQuality(G, opts = {}) {
     last = t;
     if (!D.on || Q.contextLost) return;
     if ((!persisted && t < readyAt + ignoreAfterReadyS * 1000) || t < settleUntil) { n = 0; head = 0; windowStart = t; return; }
-    if (dtMs <= 0 || dtMs > 250) return;     // hitch/background frame: not evidence either way
+    // hitch/background frame: not evidence either way. The cut-off follows the recent p75 so a GPU that is simply
+    // that slow (150 ms frames) still produces evidence, while a 1 s tab-switch stall never does.
+    if (dtMs <= 0 || dtMs > Math.max(250, 2.5 * (D.p75 || 0))) return;
     ring[head] = dtMs; head = (head + 1) % N; n++;
-    if (t - windowStart < windowS * 1000 || n < 20) return;
+    // doubled/missed-frame rate, EMA over ~2 s (a 0.5 s window holds too few frames for a stable p95/p99)
+    D.miss += ((dtMs > budgetMs * 1.7 ? 1 : 0) - D.miss) * Math.min(1, dtMs / 2000);
+    const age = t - windowStart;
+    if (!((age >= windowS * 1000 && n >= 8) || (age >= 1500 && n >= 3))) return;
+    // programs still linking (KHR_parallel_shader_compile) = objects skipped = falsely fast frames: not evidence
+    if (fake === null && compiling()) { n = 0; head = 0; windowStart = t; return; }
     // ---- evaluate one window ----
-    const p75 = percentile(0.75);
-    D.p75 = p75; D.avg = mean();
+    const p50 = percentile(0.5), p75 = percentile(0.75), p90 = percentile(0.9);
+    D.p75 = p75; D.p90 = p90; D.avg = mean();
     n = 0; head = 0; windowStart = t;
     const si = stepIndex(Q.scale);
-    if (p75 > downMs) { D.over++; D.under = 0; }
-    else if (p75 < upMs) { D.under++; D.over = 0; }
+    // missed frames matter as much as the typical one: a GPU-bound browser presents a frame that runs a little over
+    // its deadline as a ~2x interval, so the miss rate (frames > 1.7x budget, EMA ~2 s) catches what p75 hides.
+    // Over = p75 high OR p90 doubled OR > 3 % misses. Headroom = (real headroom: p75 < 0.85x budget and p90 < 1.3x,
+    // OR vsync-locked at the budget: p50 within 1 ms of it, p90 < 1.1x — there frames never go below the refresh
+    // interval, so p75 cannot show headroom) AND < 1 % misses.
+    const locked = Math.abs(p50 - budgetMs) < 1 && p90 < budgetMs * 1.1;
+    if (p75 > downMs || p90 > budgetMs * 1.5 || D.miss > 0.03) { D.over++; D.under = 0; }
+    else if ((locked || (p75 < upMs && p90 < budgetMs * 1.3)) && D.miss < 0.01) { D.under++; D.over = 0; }
     else { D.over = 0; D.under = 0; }
-    // scale down: 2 consecutive bad windows
-    if (D.over >= 2 && Q.scale > Q.settings.minScale + 1e-3) {
-      failedAt[si] = t; setScale(Q.scale - step, 'over budget', p75); D.over = 0; D.under = 0; return;
+    // far over budget (p75 > 1.25x): act on ONE window and jump instead of stepping. Pixel cost ~ scale^2, so
+    // scale * sqrt(0.75 * budget / p75) is the scale that would fit if the whole frame were pixel-bound (it never
+    // is, so this undershoots the drop and the next window finishes the job). If even the floor scale cannot fit
+    // and p75 > 2x budget, drop the tier straight away (two tiers when p75 > 4x budget).
+    const ratio = p75 / budgetMs;
+    if (ratio > 1.25 && D.over >= 1) {
+      const want = Q.scale * Math.sqrt(0.75 / ratio);
+      const canTier = !Q.pinned && opts.autoTier !== false && tierIdx(Q.tier) > 0 && t - lastTierChange > 1500;
+      if (want < Q.settings.minScale - 1e-3 && ratio > 2 && canTier) {
+        if (t - lastTierUp < 60000) tierBackoff = Math.min(8, tierBackoff * 2);
+        const drop = ratio > 4 ? 2 : 1;
+        D.over = D.under = D.floorWindows = 0;
+        setTier(TIER_ORDER[Math.max(0, tierIdx(Q.tier) - drop)], 'far over budget', p75); setScale(1, 'tier down reset', p75);
+        return;
+      }
+      if (Q.scale > Q.settings.minScale + 1e-3) {
+        failedAt[si] = t; setScale(Math.min(Q.scale - step, want), 'far over budget', p75); D.over = 0; D.under = 0;
+        settleUntil = t + 300; return; // the resize frame re-allocates targets: not evidence
+      }
     }
-    // scale up: 3 good windows, or 8 if this next step failed within the last 10 s (hysteresis: stops the
+    // scale down: 2 consecutive bad windows (one, and a double step, when > 6 % of frames are doubling)
+    if ((D.over >= 2 || D.miss > 0.06) && Q.scale > Q.settings.minScale + 1e-3) {
+      failedAt[si] = t; setScale(Q.scale - (D.miss > 0.06 ? 2 * step : step), 'over budget', p75); D.over = 0; D.under = 0;
+      settleUntil = t + 300; return;
+    }
+    // scale up: 3 good windows, or 12 if this next step failed within the last 30 s (hysteresis: stops the
     // 60↔30 fps vsync ping-pong where one step up is exactly what made it miss the budget)
     if (Q.scale < maxScale - 1e-3) {
-      const recentFail = t - failedAt[si + 1] < 10000;
-      if (D.under >= (recentFail ? 8 : 3)) { setScale(Q.scale + step, 'headroom', p75); D.under = 0; return; }
+      // 30 s memory: every scale change re-allocates the post targets (a hitch), so a ping-pong costs p99 too
+      const recentFail = t - failedAt[si + 1] < 30000;
+      if (D.under >= (recentFail ? 12 : 3)) { setScale(Q.scale + (p75 < budgetMs * 0.6 && !recentFail ? 2 * step : step), 'headroom', p75); D.under = 0; return; } // big headroom climbs 0.1
     }
     if (Q.pinned || opts.autoTier === false) return;
     // tier down: sustained at the floor scale and still over budget
     D.floorWindows = Q.scale <= Q.settings.minScale + 1e-3 && p75 > downMs ? D.floorWindows + 1 : 0;
-    if (D.floorWindows >= 3 && t - lastTierChange > 10000 && tierIdx(Q.tier) > 0) {
+    if (D.floorWindows >= 3 && t - lastTierChange > 5000 && tierIdx(Q.tier) > 0) {
       if (t - lastTierUp < 60000) tierBackoff = Math.min(8, tierBackoff * 2);
       D.floorWindows = 0; setTier(TIER_ORDER[tierIdx(Q.tier) - 1], 'floor sustained', p75); setScale(0.85, 'tier down reset', p75); return;
     }
@@ -201,7 +313,7 @@ export function createQuality(G, opts = {}) {
     D.headroomWindows = Q.scale >= maxScale - 1e-3 && p75 < tierUpMs ? D.headroomWindows + 1 : 0;
     // backoff: every tier-up that had to be undone within 60 s doubles the evidence needed next time (max 8x)
     if (D.headroomWindows >= 10 * tierBackoff && t - lastTierChange > 10000 && tierIdx(Q.tier) < tierIdx(Q.maxTier)) {
-      D.headroomWindows = 0; lastTierUp = t; setTier(TIER_ORDER[tierIdx(Q.tier) + 1], 'headroom sustained', p75); setScale(0.85, 'tier up reset', p75);
+      D.headroomWindows = 0; lastTierUp = t; setTier(TIER_ORDER[tierIdx(Q.tier) + 1], 'headroom sustained', p75); setScale(p75 < budgetMs * 0.5 ? 1 : 0.85, 'tier up reset', p75);
     }
   }
   G.on('preupdate', update);
@@ -213,6 +325,17 @@ export function createQuality(G, opts = {}) {
   const api = {
     get tier() { return Q.tier; }, get scale() { return Q.scale; }, get settings() { return Q.settings; },
     detected: det, setScale, setTier, selfUpdating: true, // update runs via G.on('update') already
+    // Manual resolution (settings menu): a number pins the render scale (0.25..1, ignores the tier floor) and turns
+    // dynres off; null = Auto, dynres back on — unless the URL decided (?dynres=0|1 or ?scale= override the menu,
+    // ?shot keeps it off). Returns true when applied. Live: the post pipeline re-sizes on the next frame.
+    setManualScale(s) {
+      if (p.get('dynres') !== null || p.get('scale') !== null || shot) return false;
+      if (s == null) { D.on = dynOn; D.over = D.under = 0; n = 0; settleUntil = now() + 500; log('manual auto', 0); return true; }
+      D.on = false;
+      const v = Math.round(Math.min(1, Math.max(0.25, +s)) * 100) / 100;
+      if (v !== Q.scale) { Q.scale = v; apply(); log('manual', 0); G.emit('quality', Q, 'scale'); }
+      return true;
+    },
     warmup: (o) => warmup(G, o), simulateContextLoss: guard.simulate,
     // tests: feed synthetic frame times through the real controller logic (bypasses the ready/settle gates)
     // e.g. Q._feed(30, 600) = ten seconds of 30 ms frames on a virtual clock. Consecutive _feed calls form one test
