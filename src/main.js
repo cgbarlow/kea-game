@@ -42,8 +42,11 @@ import * as Possums from './modules/possums/index.js';
 import * as Game from './modules/game/index.js';
 import * as Hud from './modules/hud/index.js';
 import * as Audio from './modules/audio/index.js';
+import * as Ranger from './modules/ranger/index.js';
+import * as KeaPlayer from './modules/keaplayer/index.js';
+import * as KeaGame from './modules/keagame/index.js';
 
-const SHOWCASES = { carpark: Carpark, terrain: Terrain, vans: Vans, blower: Blower, kea: Kea, possums: Possums };
+const SHOWCASES = { carpark: Carpark, terrain: Terrain, vans: Vans, blower: Blower, kea: Kea, possums: Possums, ranger: Ranger, keaplayer: KeaPlayer, keagame: KeaGame };
 const own = (m) => { if (m && typeof m === 'object') m.selfUpdating = true; return m; };
 
 async function main() {
@@ -164,6 +167,10 @@ async function main() {
   }, { msg: 'Grading the film', at: 0.8 });
   await stage('audio', () => Audio.create(G, { blower }), { msg: 'Tuning the two-stroke', at: 0.84 });
   const game = await stage('game', () => Game.create(G, { input, colliders: world.colliders, vans, kea, possums, blower, cover: A.cover || [] }), { msg: 'Reading the shift brief', at: 0.88 });
+  // v2 kea mode: everything boots once; the mode chosen on the title enables one set (integration: lead).
+  const ranger = await stage('ranger', () => Ranger.create(G, { vans, colliders: world.colliders, possums }), { msg: 'Rostering a ranger', at: 0.89 });
+  const keaplayer = await stage('keaplayer', () => KeaPlayer.create(G, { input, colliders: world.colliders, terrain, vans }), { msg: 'Sharpening a beak', at: 0.9 });
+  await stage('keagame', () => KeaGame.create(G, { player: keaplayer, ranger, vans, possums, kea, terrain }), { msg: 'Filing a risk assessment', at: 0.91 });
   await stage('hud', () => Hud.create(G, { input, player: game.player, quality: Q, path: PATH, game, vans, blower }), { msg: 'Printing the signage', at: 0.92 });
 
   // ?show=<module>: that module's showcase camera

@@ -27,5 +27,11 @@ export const STUBS = {
   audio:     () => ({ update: noop, play: () => null, setVolume: noop, unlock: noop, mixer: null }),
   game:      (G) => ({ update: noop, player: { update: noop, position: G.camera.position, velocity: new Vector3(), teleport: noop, shake: 0 },
                state: 'shift', timeLeft: 0, shiftLength: 0, strikes: 0, phase: 'calm', compliant: true, stats: {}, restart: noop }),
+  ranger:    () => ({ update: noop, group: null, position: new Vector3(), state: 'patrol', firing: false, origin: new Vector3(), dir: new Vector3(0, 0, -1),
+               range: 0, strengthAt: zero, forceAt: (p, o) => o.set(0, 0, 0), enabled: false, reset: noop, materials: [] }),
+  keaplayer: (G) => ({ update: noop, overlay: { scene: new Scene(), camera: new PerspectiveCamera(54, G.width / G.height, 0.01, 10) },
+               position: new Vector3(), velocity: new Vector3(), yaw: 0, pitch: 0, grounded: true, perched: false, flying: false, stamina: 1,
+               offended: 0, carrying: null, pulling: 0, tumble: 0, enabled: false, teleport: noop, knock: noop }),
+  keagame:   () => ({ update: noop, state: 'idle', timeLeft: 0, shiftLength: 0, banked: 0, quota: 9, cone: 'gate', notices: 0, stats: {}, restart: noop }),
   hud:       () => ({ update: noop, toast: noop, set: noop, ui: { setState: noop, state: 'playing' } }),
 };

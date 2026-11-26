@@ -66,4 +66,33 @@ export const LAYOUT = {
   keaRoost: [[26, 22, -34], [-30, 26, -36], [0, 30, -40]],      // kea come off the north range
   lamps: [[-6, -3], [16, -3]],
   spawn: [2, 0, -9],
+  // v2 kea mode
+  cone: [29.0, 0, -17.5],                                     // the Department's road cone, beside the ROAD CLOSED gate
+  stash: [-4, 3.9, -31],                                      // kea stash: rock ledge on the north scree (y = terrain)
+  keaSpawn: [-4, 4.3, -30.4], keaSpawnYaw: 0,                 // the player kea starts on the stash ledge facing south
+};
+
+// v2 kea mode: hero poses (refine at integration; the critic judges these) and the #bench fly path (0.3-14 m).
+export const KPOSES = [
+  [0.4, 3.0, 0.4, 0.0, 2.0, -1.2],        // K1 on van B's cab mid-pull, the ranger turning behind
+  [20.0, 6.0, -4.0, -20.0, 3.0, -8.0],    // K2 gliding west down the car park into the sun, beak in frame
+  [30.2, 1.6, -19.6, 29.0, 0.3, -17.5],   // K3 perched on the ROAD CLOSED gate arm, eyeing the cone
+  [6.0, 7.0, 6.0, -6.0, 2.0, 2.0],        // K4 carrying the cone over the vans
+  [-4.0, 4.3, -30.5, 0.0, 1.0, 2.0],      // K5 the stash ledge, pile + car park below
+  [-6.0, 1.2, -6.5, -8.0, 0.6, -8.0],     // K6 the ranger crouched in an aftershock as a kea lands
+];
+export const KPATH = [
+  [-4, 5.0, -30, 0, 2, 0],
+  [-2, 8.0, -18, 0, 2, 4],
+  [0, 4.0, -4, 0, 2, 4],
+  [10, 3.2, 1, 20, 1.5, 6],
+  [24, 6.0, -6, 30, 1, -18],
+  [30, 1.8, -16, 10, 2, -2],
+  [10, 12.0, -10, -20, 2, 0],
+  [-18, 0.6, -2, -4, 1, -30],
+];
+export const KEA_PLAYER = {
+  eye: 0.35, radius: 0.18, walk: 1.6, hop: 2.4, flapClimb: 3.5, glideSink: 1.2, glideSpeed: 7, diveSpeed: 11,
+  ceiling: 16, landSpeed: 3, landHeight: 0.5, stamDrain: 0.28, stamRecover: 0.45, fov: 78, viewFov: 54,
+  pullTime: 2.5, pullReach: 0.9, tumble: 1.2, squawkCooldown: 6, offendedMax: 3, bounds: { min: [-34, -2, -34], max: [34, 16, 20] },
 };
