@@ -86,6 +86,13 @@ export function create(G, { input, colliders = [] }) {
       ry = sh * (Math.sin(t * 3.7 + 1.0) * 0.004);
       rr = sh * (roll * 0.0075 + jud * 0.0008);
     }
+    // blower micro-shake: the two-stroke in your hands, felt through the view (well under a tenth of a degree)
+    const bs = G.mods && G.mods.blower ? G.mods.blower.shake || 0 : 0;
+    if (bs > 0) {
+      rp += bs * 0.0007 * (Math.sin(t * 41.0) + 0.6 * Math.sin(t * 67.0 + 1.9));
+      ry += bs * 0.0005 * (Math.sin(t * 53.0 + 0.7) + 0.5 * Math.sin(t * 29.0 + 2.3));
+      jy += bs * 0.0006 * Math.sin(t * 47.0 + 1.1);
+    }
     G.camera.position.set(pos.x + jx, pos.y + S.eye + bob.x + land.x * 0.1 + jy, pos.z + jz);
     e.set(S.pitch + rp, S.yaw + ry, Math.sin(phase) * 0.004 * Math.min(1, hs / P.walk) + rr);
     G.camera.quaternion.setFromEuler(e);

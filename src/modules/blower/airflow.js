@@ -2,8 +2,11 @@
 // 1 draw call, atmos-patched), and small dust / snow / leaf chips + ground spray through the shared fx pool.
 // The jet itself is ONLY faint velocity-stretched streaks (alpha <= 0.08, life <= 0.35 s): no mist blobs at the
 // nozzle. Nothing is emitted unless firing && power > 0.2; under ?shot no puff spawns within 1.5 m of the nozzle.
+// Live play (not ?shot) runs the jet hotter so it reads in daylight: brighter/wider streaks, more chips, a faint
+// dust haze riding the jet. The jet travels along B.jetDir (nozzle → crosshair point), the same line the gameplay
+// cone uses, so what the player sees hitting a bird or possum is what pushes it. ?shot keeps the critic-tuned look.
 // createAirflow(G, B) → { update(dt), mesh }. Allocation-free per frame.
-import { BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, AdditiveBlending, Vector3 } from 'three';
+import { BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, AdditiveBlending, DoubleSide, Vector3 } from 'three';
 import { patchAtmos } from '../../cookbook/lighting/atmos.js';
 
 const N = 96;                                         // ribbon particles (streaks + droplets)
@@ -21,13 +24,17 @@ export function createAirflow(G, B) {
   geo.setAttribute('position', new BufferAttribute(pos, 3).setUsage(35048));
   geo.setAttribute('color', new BufferAttribute(col, 3).setUsage(35048));
   geo.setIndex(new BufferAttribute(idx, 1));
-  const mat = new MeshBasicMaterial({ vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+  // DoubleSide: the ribbon's winding depends on the streak direction vs the camera; a jet blowing AWAY from the viewer
+  // (i.e. always, in first person) is back-facing, so with the default FrontSide the streaks were culled and never drawn
+  const mat = new MeshBasicMaterial({ vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false, side: DoubleSide });
   patchAtmos(mat, { additive: true });
   const mesh = new Mesh(geo, mat);
   mesh.frustumCulled = false; mesh.renderOrder = 12; mesh.name = 'blower:airflow'; mesh.userData.noReflect = true;
   G.scene.add(mesh);
   let next = 0, accS = 0, accG = 0, accW = 0, accW2 = 0;
   const SHOT = !!(G.params && G.params.get('shot'));
+  const LV = SHOT ? 0 : 1;                            // live-play visibility boost (0 under ?shot)
+  let accH = 0;
   const far = (x, y, z) => { const o = B.origin, dx = x - o.x, dy = y - o.y, dz = z - o.z; return dx * dx + dy * dy + dz * dz >= NEAR2; };
 
   function spawn(x, y, z, vx, vy, vz, l, w, k, b) {
@@ -43,20 +50,21 @@ export function createAirflow(G, B) {
   };
 
   function update(dt) {
-    const fx = G.mods.fx, pw = B.power, o = B.origin, d = B.dir, vd = B.visDir, tb = B.turbo ? 1.35 : 1;
+    const fx = G.mods.fx, pw = B.power, o = B.origin, d = B.jetDir || B.dir, vd = B.visDir, tb = B.turbo ? 1.35 : 1;
     // ---- emit: streaks from the nozzle along the cone
     if (B.firing && pw > 0.2 && dt > 0) {
-      accS += dt * 60 * pw * tb;
+      accS += dt * (60 + 60 * LV) * pw * tb;
       while (accS >= 1) {
         accS -= 1;
-        _s.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(0.3).addScaledVector(vd, 0.55).addScaledVector(d, 0.45).normalize();
+        _s.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(0.3).addScaledVector(vd, 0.55 - 0.4 * LV).addScaledVector(d, 0.45 + 0.4 * LV).normalize();
         // faint air streaks aligned to the nozzle, starting a little way out of the mouth
         const sp = (15 + rand() * 9) * pw * tb, j = 0.03, a0 = 0.15 + rand() * 0.25;
-        spawn(o.x + vd.x * a0 + (rand() - 0.5) * j, o.y + vd.y * a0 + (rand() - 0.5) * j, o.z + vd.z * a0 + (rand() - 0.5) * j, _s.x * sp, _s.y * sp, _s.z * sp, 0.18 + rand() * 0.17, 0.004 + rand() * 0.005, 0, 0.05 + rand() * 0.03);
+        spawn(o.x + vd.x * a0 + (rand() - 0.5) * j, o.y + vd.y * a0 + (rand() - 0.5) * j, o.z + vd.z * a0 + (rand() - 0.5) * j, _s.x * sp, _s.y * sp, _s.z * sp,
+          0.18 + rand() * 0.17 + LV * 0.1, (0.004 + rand() * 0.005) * (1 + LV * 1.2), 0, (0.05 + rand() * 0.03) * (1 + LV * 3.5));
       }
       // ---- ground contact: where the lower edge of the jet meets the ground; aimed level, the downwash still
       //      scours a patch 2-4 m ahead (weaker the higher the jet runs)
-      _u.copy(vd); _u.y -= 0.14; _u.normalize();
+      _u.copy(d); _u.y -= 0.14; _u.normalize();
       const gy0 = groundAt(o.x, o.z);
       let s = 0;
       if (_u.y < -0.02 && (o.y - gy0) / -_u.y < B.range) {
@@ -69,7 +77,7 @@ export function createAirflow(G, B) {
       if (fx && s > 0.02) {
         const fwdx = d.x, fwdz = d.z, fl = Math.hypot(fwdx, fwdz) || 1;
         const wet = wetAt(_g.x, _g.z);
-        accG += dt * 40 * s;
+        accG += dt * (40 + 30 * LV) * s;
         while (accG >= 1) {
           accG -= 1;
           // along a short strip of the contact zone, pushed downwind
@@ -81,12 +89,12 @@ export function createAirflow(G, B) {
             fx.puff(x, y + 0.04, z, vx * 0.6, 0.6 + rand() * 0.6, vz * 0.6, 0.08, 0.45 + rand() * 0.25, 0.35 + rand() * 0.2, SPRAY[0], SPRAY[1], SPRAY[2], 0.08, 0.15, 0, 0, 1, 2.2);
             for (let n = 0; n < 3; n++) spawn(x, y + 0.02, z, vx * (0.6 + rand() * 0.6), 1.6 + rand() * 2.6, vz * (0.6 + rand() * 0.6), 0.45 + rand() * 0.35, 0.004 + rand() * 0.004, 1, 1.6);
           } else if (r < 0.62) {        // dust: a low, thin scour skirt hugging the ground (no beige balls)
-            fx.puff(x, y + 0.05, z, vx, 0.2 + rand() * 0.3, vz, 0.08, 0.4 + rand() * 0.3, 0.45 + rand() * 0.3, DUST[0], DUST[1], DUST[2], 0.08, 0.1, 0, 0, 1, 1.6);
+            fx.puff(x, y + 0.05, z, vx, 0.2 + rand() * 0.3, vz, 0.08, (0.4 + rand() * 0.3) * (1 + LV * 0.4), 0.45 + rand() * 0.3, DUST[0], DUST[1], DUST[2], 0.08 + LV * 0.14, 0.1, 0, 0, 1, 1.6);
           } else if (r < 0.85) {        // lying snow lifted: fine flecks
-            fx.puff(x, y + 0.05, z, vx * 1.2, 0.6 + rand() * 0.8, vz * 1.2, 0.012, 0.018, 0.35 + rand() * 0.2, SNOW[0], SNOW[1], SNOW[2], 0.8, -0.4, 0, 0, 1, 1.8);
+            fx.puff(x, y + 0.05, z, vx * 1.2, 0.6 + rand() * 0.8, vz * 1.2, 0.012 + LV * 0.01, 0.018 + LV * 0.014, 0.35 + rand() * 0.2, SNOW[0], SNOW[1], SNOW[2], 0.8, -0.4, 0, 0, 1, 1.8);
           } else {                      // beech leaves: small, opaque, tumbling, settle again
             const L = rand() < 0.5 ? LEAF : LEAF2;
-            fx.puff(x, y + 0.05, z, vx * 1.3, 1.2 + rand() * 1.6, vz * 1.3, 0.025, 0.03, 0.5 + rand() * 0.3, L[0], L[1], L[2], 0.95, -0.9, 0, 0, 1, 0.9);
+            fx.puff(x, y + 0.05, z, vx * 1.3, 1.2 + rand() * 1.6, vz * 1.3, 0.025 + LV * 0.012, 0.03 + LV * 0.015, 0.5 + rand() * 0.3, L[0], L[1], L[2], 0.95, -0.9, 0, 0, 1, 0.9);
           }
         }
       }
@@ -94,14 +102,23 @@ export function createAirflow(G, B) {
       const sh = G.mods.carpark && G.mods.carpark.shelter, jetK = sh && sh.box && sh.box.containsPoint(o) ? 0.25 : 1;
       if (fx) {
         // ---- debris riding the jet: snow flecks + leaf bits (small, opaque, fast)
-        accW2 += dt * 9 * pw * tb * jetK;
+        accW2 += dt * (9 + 24 * LV) * pw * tb * jetK;
         while (accW2 >= 1) {
           accW2 -= 1;
-          _s.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(0.3).addScaledVector(vd, 0.5).addScaledVector(d, 0.5).normalize();
+          _s.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(0.3).addScaledVector(vd, 0.5 - 0.35 * LV).addScaledVector(d, 0.5 + 0.35 * LV).normalize();
           const sp = (7 + rand() * 7) * pw * tb, a = (SHOT ? 1.6 : 0.8) + rand() * 1.4, leaf = rand() < 0.45, C = leaf ? (rand() < 0.5 ? LEAF : LEAF2) : SNOW;
           // small chips riding the cone, short-lived so they fade fast instead of hanging in front of the nozzle
           fx.puff(o.x + vd.x * a + (rand() - 0.5) * 0.15, o.y + vd.y * a + (rand() - 0.5) * 0.15, o.z + vd.z * a + (rand() - 0.5) * 0.15, _s.x * sp, _s.y * sp, _s.z * sp,
-            leaf ? 0.012 : 0.008, leaf ? 0.014 : 0.01, 0.25 + rand() * 0.1, C[0], C[1], C[2], leaf ? 0.9 : 0.7, leaf ? -1.2 : -0.4, 0, 0, 1, 1.4);
+            (leaf ? 0.012 : 0.008) * (1 + LV * 0.8), (leaf ? 0.014 : 0.01) * (1 + LV * 1.0), 0.25 + rand() * 0.1 + LV * 0.15, C[0], C[1], C[2], leaf ? 0.9 : 0.7, leaf ? -1.2 : -0.4, 0, 0, 1, 1.4);
+        }
+        // ---- live play: a faint dust haze carried down the jet (1.2-3.5 m out, so the nozzle itself stays clean)
+        accH += dt * 12 * LV * pw * tb * jetK;
+        while (accH >= 1) {
+          accH -= 1;
+          const a = 1.2 + rand() * 2.3, sp = (5 + rand() * 4) * pw * tb;
+          _s.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(0.25).add(d).normalize();
+          fx.puff(o.x + d.x * a + (rand() - 0.5) * 0.2, o.y + d.y * a + (rand() - 0.5) * 0.2, o.z + d.z * a + (rand() - 0.5) * 0.2, _s.x * sp, _s.y * sp, _s.z * sp,
+            0.1, 0.55 + rand() * 0.35, 0.45 + rand() * 0.25, DUST[0] * 1.15, DUST[1] * 1.15, DUST[2] * 1.15, 0.22 + 0.15 * (tb - 1), 0.05, 0, 0, 1, 2.0);
         }
       }
     }

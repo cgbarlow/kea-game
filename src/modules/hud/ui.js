@@ -33,6 +33,7 @@ export function create(G, { input, player, quality, path }) {
   const $ = (s) => document.querySelector(s);
   const el = { ui: $('#ui'), hud: $('#hud') };
   for (const s of SCREENS) el[s] = $('#' + s);
+  el.pause?.querySelector('.sign-body')?.insertAdjacentHTML('afterend', '<p class="sign-body"><b>Click to resume.</b></p>');
   const binds = {}; document.querySelectorAll('[data-bind]').forEach((n) => { binds[n.dataset.bind] = n; });
   const shot = !!G.params.get('shot');
   const settings = { quality: 'auto', res: 'auto', sens: 1, fov: G.camera.fov, volume: 0.8, invertY: false };
@@ -129,6 +130,8 @@ export function create(G, { input, player, quality, path }) {
   };
   el.ui.addEventListener('click', (e) => {
     const m = e.target.closest('[data-mode]'); if (m) { U.start(m.dataset.mode); return; }
+    // pointer lock lost mid-shift (input:unlock) → paused: a click anywhere off the buttons resumes and re-captures
+    if (U.state === 'paused' && !e.target.closest('button, a, input, select, label')) { act('resume'); return; }
     const a = e.target.closest('[data-act]')?.dataset.act; if (a) act(a);
   });
   // keyboard navigation for menus (arrows / Enter); in-shift keys belong to engine/input.js

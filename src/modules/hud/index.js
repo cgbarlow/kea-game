@@ -8,6 +8,7 @@
 // which html.shot keeps visible with all animation frozen, so ?shot captures show the HUD deterministically.
 // Showcase: ?show=hud[&hudscreen=hud|title|pause|settings|end] freezes a representative state at the spawn pose.
 import { create as createUI } from './ui.js';
+import { create as createFps } from './fps.js';
 import { LIVERY } from '../vans/livery.js';
 import { END_TEXT, REVIEWS, VAN_STATUS, HEAT_STATE, RATINGS, ALERT_COPY, TOASTS, TICKER } from './copy.js';
 
@@ -17,6 +18,7 @@ const SHOW_CAM = [2, 1.68, -9], SHOW_TARGET = [-1, 1.5, 4];
 export function create(G, { input, player, quality, path, game, vans, blower }) {
   const ui = createUI(G, { input, player, quality, path });
   G.mods.ui = G.mods.ui || ui;
+  const fps = createFps(G);   // F3 / ` toggles the frame-rate readout (hud/fps.js)
   if (player && !G.mods.player) G.mods.player = player;
   const hud = document.getElementById('hud');
   const q = (k) => hud.querySelector(`[data-h="${k}"]`);
@@ -67,7 +69,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
     const h = Math.floor(mins / 60) % 24, m = mins % 60;
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   };
-  const H = { ui };
+  const H = { ui, fps };
   H.set = (k, v) => ui.set(k, v);
   H.toast = (msg) => {
     if (!msg || (msg === lastToast && G.t - lastToastAt < 2.5)) return;
@@ -157,6 +159,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
 
   // ---- per-frame (guarded writes only) ----
   H.update = (dt) => {
+    fps.update();
     ui.update(dt);
     if (!demo) for (const s of toastPool) if (s.on) { s.t -= dt; if (s.t <= 0) { s.on = false; s.n.classList.remove('on'); } }
     if (ui.state !== 'playing' || !game) return;

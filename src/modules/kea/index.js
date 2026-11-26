@@ -264,11 +264,12 @@ export function create(G, { vans, blower } = {}) {
       if (blower && (k.state === 'perched' || k.state === 'approach' || k.state === 'landing')) {
         _b.copy(k.pos); _b.y += 0.15;
         const s = blower.strengthAt(_b);
-        if (s > 0.08) {
-          k.grip -= s * dt * (k.state === 'perched' ? 1.4 : 4);
+        // forgiving: a rough aim at ~8 m (s ≈ 0.3) dislodges a percher in ~0.4 s, turbo faster; grip comes back slowly
+        if (s > 0.04) {
+          k.grip -= (0.1 + s) * dt * (k.state === 'perched' ? 2.8 : 5);
           if (k.state === 'perched') { k.flick = Math.max(k.flick, 0.8); k.ruffle = Math.min(1, k.ruffle + dt * 2); k.bp = damp(k.bp, 0.05, 10, dt); }
           if (k.grip <= 0) { blowOff(k, s); continue; }
-        } else k.grip = Math.min(tuning.grip, k.grip + dt * 0.5);
+        } else k.grip = Math.min(tuning.grip, k.grip + dt * 0.25);
       }
       step(k, dt);
     }

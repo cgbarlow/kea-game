@@ -14,7 +14,7 @@ import { buildPossumGeo } from './geo.js';
 import { createPossumMaterials } from './materials.js';
 import { makeRig, pose } from './rig.js';
 
-const MAX = 8, TRAP_R = 0.6, BLOW_MIN = 0.08, PUSH_K = 0.5, RAID_DPS = 0.012;
+const MAX = 8, TRAP_R = 0.6, BLOW_MIN = 0.05, PUSH_K = 0.5, RAID_DPS = 0.012;
 // showcase: the trap line at T-015 (LAYOUT.traps[2]); a possum mid-tumble in the airflow, sliding toward the mouth
 const SHOW_CAM = [5.64, 0.84, 12.96], SHOW_TARGET = [5.1, 0.1, 13.98], SHOW_TRAP = 2;
 const _a = new Vector3(), _f = new Vector3(), _q = new Vector3(), _m = new Matrix4(), _qq = new Quaternion(), _e = new Euler(), _s = new Vector3();
@@ -254,7 +254,11 @@ export function create(G, { vans, blower, traps = [] } = {}) {
           // torque: airflow across the body spins it
           const hx = -Math.sin(p.yaw), hz = -Math.cos(p.yaw);
           p.spin += (hx * _f.z - hz * _f.x) * dt * 0.25;
-          if (p.state !== 'blown') { p.state = 'blown'; p.spray = 0; G.emit('possum:blown', p); }
+          if (p.state !== 'blown') {
+            // knocked off its feet: an immediate shove along the airflow, so even a long-range hit reads at once
+            if (fl > 1e-4) { const kv = 0.9 + 2.2 * Math.min(1, s); p.vel.x += (_f.x / fl) * kv; p.vel.z += (_f.z / fl) * kv; }
+            p.state = 'blown'; p.spray = 0; G.emit('possum:blown', p);
+          }
           p.t = 0; p.shake = 0;
         }
       }
