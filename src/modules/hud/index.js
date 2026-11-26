@@ -4,11 +4,12 @@
 //   status), blower temp gauge (segments, turbo, overheat), DROP / COVER / HOLD banner with countdown + compliance,
 //   procedure strikes, toast feed (time-stamped notices), end screen (incident report: stats, rating, restart).
 // Every DOM write is guarded by a last-value cache: text/class/width only change when the value changes, and the
-// update loop allocates nothing. The whole UI carries class .ui, so html.shot hides it.
+// update loop allocates nothing. Menus carry class .ui (html.shot hides them); the in-shift HUD is .ui.hud-play,
+// which html.shot keeps visible with all animation frozen, so ?shot captures show the HUD deterministically.
 // Showcase: ?show=hud[&hudscreen=hud|title|pause|settings|end] freezes a representative state at the spawn pose.
 import { create as createUI } from './ui.js';
 import { LIVERY } from '../vans/livery.js';
-import { END_TEXT, REVIEWS, VAN_STATUS, HEAT_STATE, RATINGS, ALERT_COPY, TOASTS } from './copy.js';
+import { END_TEXT, REVIEWS, VAN_STATUS, HEAT_STATE, RATINGS, ALERT_COPY, TOASTS, TICKER } from './copy.js';
 
 const SEGS = 14, TOAST_N = 4, TOAST_LIFE = 7;
 const SHOW_CAM = [2, 1.68, -9], SHOW_TARGET = [-1, 1.5, 4];
@@ -22,7 +23,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   const mk = (cls, parent, tag = 'span') => { const n = document.createElement(tag); if (cls) n.className = cls; parent.appendChild(n); return n; };
 
   const N = { clock: q('clock'), track: q('track'), banner: q('banner'), bTop: q('bTop'), bCount: q('bCount'), bSub: q('bSub'),
-    toasts: q('toasts'), heat: q('heat'), heatState: q('heatState'), segs: q('segs'), vans: q('vans'), strikeNote: q('strikeNote') };
+    toasts: q('toasts'), ticker: q('ticker'), heat: q('heat'), heatState: q('heatState'), segs: q('segs'), vans: q('vans'), strikeNote: q('strikeNote') };
   const timerEl = hud.querySelector('.hud-timer'), cross = hud.querySelector('.crosshair');
   const strikeBoxes = hud.querySelectorAll('.s-boxes i');
   const segs = []; for (let i = 0; i < SEGS; i++) { const s = mk('', N.segs, 'i'); s.className = i >= SEGS * 0.8 ? 'hot' : i >= SEGS * 0.5 ? 'warm' : ''; segs.push(s); }
@@ -43,7 +44,8 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   const cache = new Map();
   const text = (node, v) => { if (cache.get(node) !== v) { cache.set(node, v); node.textContent = v; } };
   const flag = (node, cls, on) => { if (node.classList.contains(cls) !== on) node.classList.toggle(cls, on); };
-  let lastSec = -1, lastTrack = -1, lastHeatN = -1, lastStrikes = -1, lastCount = -1, wasHot = false, lastPhase = '', lastSub = '';
+  const shotMode = !!G.params.get('shot');
+  let lastSec = -1, lastTick = -1, lastTrack = -1, lastHeatN = -1, lastStrikes = -1, lastCount = -1, wasHot = false, lastPhase = '', lastSub = '';
 
   // showcase (?show=hud): a frozen, representative mid-shift state
   const show = G.params.get('show') === 'hud';
@@ -93,12 +95,13 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   G.on('game:alert', (kind, ok, cover) => { if (kind === 'clear') H.toast(ok ? (cover ? TOASTS.clearCover : TOASTS.clearOk) : TOASTS.clearBad); });
   // the view model belongs to the shift, not the title flyover
   G.on('ui:state', (s) => { if (blower?.overlay?.scene) blower.overlay.scene.visible = s !== 'title'; });
-  G.on('ui:state', (s, prev) => { if (s === 'playing' && (prev === 'title' || prev === 'boot')) { clearToasts(); H.toast(TOASTS.start); } });
+  G.on('ui:state', (s, prev) => { if (s === 'playing' && (prev === 'title' || prev === 'boot')) { clearToasts(); H.toast(TOASTS.start); H.toast(TOASTS.sign); } });
   G.on('restart', () => { clearToasts(); for (const p of plates) { p.warned = false; p.hitUntil = -1; } wasHot = false; });
 
   // ---- end screen (incident report) ----
   const endEl = document.getElementById('end');
   const E = {}; endEl.querySelectorAll('[data-end]').forEach((n) => { E[n.dataset.end] = n; });
+  const fmtClock = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r; };
   const fmtTime = (s) => { s = Math.max(0, Math.round(s)); const m = Math.floor(s / 60), r = s % 60; return m + ':' + (r < 10 ? '0' : '') + r; };
   function fillEnd(won, reason, stats, strikes, served, ints) {
     const key = reason && reason.startsWith('review') ? 'review' : reason;
@@ -132,9 +135,9 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
     G.on('ready', () => {
       ui.noLock = true;
       window.__setCam?.(SHOW_CAM, SHOW_TARGET);
-      // this showcase IS the DOM layer: ?shot=1 (html.shot hides every .ui) must not blank it
-      document.documentElement.classList.remove('shot');
       const scr = G.params.get('hudscreen') || 'hud';
+      // menu showcases ARE the menu layer: html.shot hides menus, so drop it for them (the HUD itself survives .shot)
+      if (scr !== 'hud') document.documentElement.classList.remove('shot');
       if (scr === 'title') { ui.setState('title'); return; }
       ui.setState('playing'); G.paused = true;
       plates[1] && (plates[1].hitUntil = 1e9);
@@ -161,7 +164,11 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
 
     // timer + shift track
     const sec = Math.ceil(S.timeLeft);
-    if (sec !== lastSec) { lastSec = sec; text(N.clock, fmtTime(sec)); flag(timerEl, 'late', sec <= 60); }
+    if (sec !== lastSec) { lastSec = sec; text(N.clock, fmtClock(sec)); flag(timerEl, 'late', sec <= 60); }
+    // advisory ticker: rotates every 12 s of shift time; under ?shot it is keyed to the camera spot (stable per pose)
+    const tk = shotMode ? Math.abs(Math.round(G.camera.position.x * 3 + G.camera.position.z * 7)) % TICKER.length
+      : Math.floor((S.shiftLength - S.timeLeft) / 12) % TICKER.length;
+    if (tk !== lastTick) { lastTick = tk; text(N.ticker, TICKER[tk]); }
     const tr = Math.round((1 - S.timeLeft / (S.shiftLength || 1)) * 400);
     if (tr !== lastTrack) { lastTrack = tr; N.track.style.width = (tr / 4) + '%'; }
 

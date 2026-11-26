@@ -60,6 +60,7 @@ export const ALERT_COPY = {
 
 export const TOASTS = {
   start: 'Shift 0417 commenced. The highway is closed. You are not.',
+  sign: 'Reminder: the kea are not hungry. They are curious. This is worse.',
   keaLand: (name) => `Kea on ${of(name)} campervan. Do not feed it. It has already eaten.`,
   keaOffended: (name, n) => `Offended kea (grievance level ${n}) has landed on ${of(name)} campervan.`,
   raid: (name) => `A possum has entered ${of(name)} campervan. They have been informed.`,
@@ -70,3 +71,14 @@ export const TOASTS = {
   overheat: 'Blower overheated. Let it rest. It has been a long day for everyone.',
   lowVan: (name) => `${of(name)} campervan is approaching review territory.`,
 };
+
+// NZTA advisory ticker under the reopening countdown (one line at a time, rotates on shift time)
+export const TICKER = [
+  'Kea are not to be fed, argued with, or blown at excessively.',
+  'SH73 remains closed between Arthur\'s Pass and Otira. Reopening estimate revised hourly, downward.',
+  'Possums entering campervans should be relocated to a DOC 200 trap box. Do not ask them to leave.',
+  'Aftershocks are expected. Drop, cover and hold. Do not drop the blower.',
+  'Kea relocated by leaf blower will return. They will be offended. This is normal.',
+  'Visitors are reminded that the long-drop is not a shelter. The shelter is the shelter.',
+  'Campervan wiper blades are not a native food source. The kea disagree.',
+];

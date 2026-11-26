@@ -9,10 +9,10 @@
 <style>/*CSS*/</style>
 </head>
 <body>
-<!-- The canvas is the only thing a ?shot=1 capture shows: html.shot hides every .ui element. -->
+<!-- Under ?shot=1, html.shot hides every .ui element except the in-shift HUD (.hud-play), so captures show the HUD, never menus. -->
 <canvas id="c" aria-label="{{TITLE}}"></canvas>
 
-<div id="ui" class="ui" data-state="boot">
+<div id="ui" class="ui hud-host" data-state="boot">
   <!-- title: the live scene flies along PATH behind it (never a black first frame) -->
   <section id="title" class="screen screen-title" hidden>
     <div class="sign sign-title">
@@ -85,22 +85,23 @@
   </section>
 
   <!-- in-shift HUD: hud/index.js fills it (text writes are value-guarded) -->
-  <div id="hud" class="hud" hidden>
-    <div class="hud-timer sign">
-      <div class="sign-rule">
-        <span class="t-label">SH73 reopening estimate</span>
-        <span class="t-clock" data-h="clock">7:00</span>
-        <span class="t-note">(not guaranteed)</span>
+  <div id="hud" class="hud ui hud-play" hidden>
+    <div class="hud-top">
+      <div class="hud-timer">
+        <span class="t-line"><span class="t-label">SH73 reopening in</span> <span class="t-clock" data-h="clock">07:00</span> <span class="t-note">(estimate not guaranteed)</span></span>
         <span class="t-track"><i data-h="track"></i></span>
       </div>
+      <div class="hud-ticker"><b>NZTA advisory</b><span data-h="ticker"></span></div>
     </div>
-    <div class="hud-objective" data-bind="objective">Protect the campervans. Do not feed the kea.</div>
+    <div class="hud-left">
+      <div class="hud-objective" data-bind="objective">Protect the campervans. Do not feed the kea.</div>
+      <div class="hud-vans" data-h="vans"><p class="v-head">Campervan register</p></div>
+    </div>
     <div class="hud-strikes">
       <span class="s-label">Procedure strikes</span>
       <span class="s-boxes"><i></i><i></i><i></i></span>
       <span class="s-note" data-h="strikeNote">3 strikes = stood down</span>
     </div>
-    <div class="hud-vans" data-h="vans"><p class="v-head">Campervan register</p></div>
     <div class="hud-banner" data-h="banner">
       <span class="b-top" data-h="bTop">Aftershock alert</span>
       <span class="b-main">Drop <i>&middot;</i> Cover <i>&middot;</i> Hold</span>
@@ -110,13 +111,14 @@
     <div class="crosshair" aria-hidden="true"><i></i></div>
     <div class="hud-prompt" data-bind="prompt"></div>
     <div class="hud-subtitle" data-bind="subtitle"></div>
-    <div class="hud-toasts" data-h="toasts"></div>
-    <div class="hud-heat" data-h="heat">
-      <span class="h-label">Blower temp</span>
-      <span class="h-state" data-h="heatState">Nominal</span>
-      <span class="h-segs" data-h="segs"></span>
-      <span class="h-scale"><i>Nominal</i><i>Warm</i><i>Unwise</i></span>
-      <span class="h-turbo">Turbo (discouraged)</span>
+    <div class="hud-bl">
+      <div class="hud-toasts" data-h="toasts"></div>
+      <div class="hud-heat" data-h="heat">
+        <span class="h-label">Blower temp</span>
+        <span class="h-state" data-h="heatState">Nominal</span>
+        <span class="h-segs" data-h="segs"></span>
+        <span class="h-turbo">Turbo (discouraged)</span>
+      </div>
     </div>
     <div class="damage-edge" data-bind="damage"></div>
   </div>
