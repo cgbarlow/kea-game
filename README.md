@@ -97,6 +97,12 @@ This game was built with **Claude Code** running **Claude Opus 5.5**, using the
 browser game with a multi-agent pipeline: specification, look development, parallel module builders, a blind
 screenshot critic, a playtest bot and a performance gate.
 
+The concept came from [**html-game-concept**](https://github.com/cgbarlow/html-game-concept), a shortlist of three dry,
+topical New Zealand game ideas (with mockups) chosen through a Council review run with
+[Campaign Mode](https://github.com/cgbarlow/campaign-mode). Do Not Feed the Kea was the recommended pick, and its
+ground rules carried straight into this build: never harm native wildlife (kea get scared off and come back offended),
+enemies are animals rather than people, no real organisations, and the joke is on the system, not the people in it.
+
 The concept prompt was:
 
 > A first-person shooter. A deadpan New Zealand comedy at a quake-closed alpine pass car park in aftershock season: armed
