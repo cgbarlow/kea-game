@@ -365,6 +365,7 @@ export function create(G, { input, colliders = [], terrain = null, vans = null }
     S.teleport(L.keaSpawn, L.keaSpawnYaw);
   };
   // dev/capture hook: frame one of the showcase stills (showcase(G, name)) and lock the camera there
+  S.body = body;                    // integration: the lead swaps the placeholder stash box for keagame's real ledge
   S.addSurface = body.addSurface;   // keagame: register the stash ledge / props the kea can stand on
   S.showPose = (name) => { const sc = showcase(G, name); if (window.__setCam) window.__setCam(sc.cam, sc.target); return sc; };
   writeEye();

@@ -31,7 +31,7 @@ import { createPost } from './cookbook/post/pipeline.js';
 import { createFarfield } from './cookbook/backdrop/farfield.js';
 import { windUniform } from './cookbook/geo/scatter.js';
 import { ART } from './art.js';
-import { POSES, PATH, WORLD, PLAYER, SEED, LAYOUT } from './contracts.js';
+import { POSES, PATH, WORLD, PLAYER, SEED, LAYOUT, KPOSES, KPATH } from './contracts.js';
 import { STUBS } from './modules/_stub.js';
 import * as Carpark from './modules/carpark/index.js';
 import * as Terrain from './modules/terrain/index.js';
@@ -51,8 +51,9 @@ const own = (m) => { if (m && typeof m === 'object') m.selfUpdating = true; retu
 
 async function main() {
   const G = createCore({ canvas: document.getElementById('c'), ART, fov: PLAYER.fov, far: 2000 });
-  Object.assign(G, { POSES, PATH, WORLD, LAYOUT, mods: {} });
-  installBench(G, { path: PATH });
+  const KEA_Q = G.params.get('mode') === 'kea';
+  Object.assign(G, { POSES, PATH, WORLD, LAYOUT, KPOSES, KPATH, mods: {} });
+  installBench(G, { path: KEA_Q ? KPATH : PATH });   // #bench flies the kea path (0.3-14 m) under ?mode=kea
   G.start();
   const boot = createBoot(G, { stubs: STUBS });
   const stage = async (name, fn, o) => (G.mods[name] = await boot.stage(name, fn, o));
@@ -153,7 +154,9 @@ async function main() {
   }, { msg: 'Lighting the shelter', at: 0.76 });
 
   await stage('post', () => {
-    const post = createPost(G, { overlay: blower.overlay });
+    // v2: the overlay is mode-switched (kea mode draws the kea's beak + wings; keaplayer boots later, so look it up lazily)
+    const kov = () => (G.mode === 'kea' && G.mods.keaplayer && G.mods.keaplayer.overlay) || blower.overlay;
+    const post = createPost(G, { overlay: blower.overlay ? { get scene() { return kov().scene; }, get camera() { return kov().camera; } } : null });
     // look-director post knobs (ART.grade covers the grade; these are the post-only ones)
     Object.assign(post.params, ART.post || {});
     // The blower overlay is drawn into the same MSAA scene target right after the world (depthRange 0..0.05) with
@@ -172,6 +175,7 @@ async function main() {
   const keaplayer = await stage('keaplayer', () => KeaPlayer.create(G, { input, colliders: world.colliders, terrain, vans }), { msg: 'Sharpening a beak', at: 0.9 });
   await stage('keagame', () => KeaGame.create(G, { player: keaplayer, ranger, vans, possums, kea, terrain }), { msg: 'Filing a risk assessment', at: 0.91 });
   await stage('hud', () => Hud.create(G, { input, player: game.player, quality: Q, path: PATH, game, vans, blower }), { msg: 'Printing the signage', at: 0.92 });
+  installKeaMode(G, { game, blower, vans });
 
   // ?show=<module>: that module's showcase camera
   const show = SHOWCASES[G.params.get('show')];
@@ -184,14 +188,102 @@ async function main() {
   G.camera.position.fromArray(POSES[0]); G.camera.lookAt(POSES[0][3], POSES[0][4], POSES[0][5]);
   // every shader permutation the shift can reveal later (actors hidden until spawned, FX pools, blower overlay):
   // the in-scene originals are forced visible by the warm-up; the proxies cover plain + instanced variants
-  const late = [...(kea.materials || []), ...(possums.materials || []), ...(fx.materials || [])];
+  const late = [...(kea.materials || []), ...(possums.materials || []), ...(fx.materials || []),
+    ...(G.mods.ranger?.materials || []), ...(G.mods.keagame?.materials || [])];
   const extras = [];
   for (const material of late) { extras.push({ material, kind: 'mesh' }, { material, kind: 'instanced' }); }
   await stage('probe-capture', () => { probe.capture?.(2); return {}; }, { msg: 'Lighting the shelter', at: 0.94 });
   // the blower view model lives in its own overlay scene (post pipeline): compile it with the world
-  const ov = blower.overlay;
-  if (ov?.scene && G.renderer.compileAsync) { try { await G.renderer.compileAsync(ov.scene, ov.camera); } catch (e) { console.warn('overlay compile', e); } }
+  for (const ov of [blower.overlay, G.mods.keaplayer?.overlay]) {
+    if (ov?.scene && G.renderer.compileAsync) { try { await G.renderer.compileAsync(ov.scene, ov.camera); } catch (e) { console.warn('overlay compile', e); } }
+  }
   await boot.finish({ extras });
+}
+
+// ---- v2 Kea mode integration: everything boots once; 'mode:start' (hud/ui.js, before 'playing') enables one set ----
+//   kea:    v1 rules idle (no timer, strikes, director, toasts, game:end), v1 player + blower off, ranger + keaplayer on;
+//           keagame enables itself on the same event. ranger: v1 as it always was (restart only when coming back from kea).
+//   The v1 blower query is routed to the ranger in kea mode, so v1 possums and background kea react to the ranger.
+//   ?kshot=K1..K6 (or ?mode=kea&shot with ?cam equal to a KPOSES entry) stages that hero pose deterministically.
+function installKeaMode(G, { game, blower, vans }) {
+  const kp = G.mods.keaplayer, kg = G.mods.keagame, rg = G.mods.ranger;
+  if (!kp || !kg || !rg || !kp.update || !rg.reset) return;
+  // the kea stands on keagame's real stash rock (replaces keaplayer's placeholder box)
+  if (kp.body && kg.ledge && kg.ledge.isBox3) {
+    const bx = kp.body.boxes; for (let i = bx.length - 1; i >= 0; i--) if (bx[i].kind === 'ledge') bx.splice(i, 1);
+    const b = kg.ledge; kp.addSurface({ x: (b.min.x + b.max.x) / 2, z: (b.min.z + b.max.z) / 2, hx: (b.max.x - b.min.x) / 2, hz: (b.max.z - b.min.z) / 2, y0: b.min.y, y1: b.max.y, kind: 'ledge' });
+  }
+  // v1 blower query → the ranger in kea mode (v1 forceAt reads B.strengthAt, so Ranger mode is unchanged)
+  if (blower && blower.strengthAt && rg.strengthAt) {
+    const s1 = blower.strengthAt, f1 = blower.forceAt;
+    blower.strengthAt = (p) => (G.mode === 'kea' ? rg.strengthAt(p) : s1(p));
+    blower.forceAt = (p, out) => (G.mode === 'kea' ? rg.forceAt(p, out) : f1(p, out));
+  }
+  // pulled parts leave the van (vans/fx.js uGone: the part's integrity rule is forced off)
+  const GONE = [0.3, 0.72, 0.4, 0, 0.6];   // van.perches order: mirror glass, kerb wiper blade, roof hatch lid, (strap), windscreen seal
+  const syncGone = () => {
+    for (const v of vans?.list || []) {
+      const u = v.uniforms && v.uniforms.uGone; if (!u) continue;
+      let n = 0; const c = [0, 0, 0, 0];
+      for (let i = 0; i < GONE.length && n < 4; i++) if (GONE[i] > 0 && G.mode === 'kea' && kp.isTaken(v, i)) c[n++] = GONE[i];
+      u.value.set(c[0], c[1], c[2], c[3]);
+    }
+  };
+  G.on('kea:pull:done', syncGone);
+  G.on('restart', () => setTimeout(syncGone, 0));
+
+  const setMode = (id) => {
+    const kea = id === 'kea';
+    if (kea) {
+      game.state = 'idle'; game.phase = 'calm'; game.alertT = 0;
+      if (game.player) { game.player.enabled = false; game.player.shake = 0; game.player.stumble = 0; }
+      if (blower) { blower.enabled = false; blower.forceFire = false; blower.firing = false; blower.power = 0; if (blower.overlay?.scene) blower.overlay.scene.visible = false; }
+      rg.enabled = true; rg.reset(); if (rg.frozen) rg.stage(null);
+      kp.enabled = true; kp.reset();
+      if (!kg.enabled) { kg.enabled = true; kg.restart(); }
+    } else {
+      if (game.state === 'idle') game.restart();
+      kp.enabled = false; rg.enabled = false;
+      if (kg.enabled) { kg.enabled = false; kg.state = 'idle'; }
+      const c = blower?.overlay?.camera; if (c?.isPerspectiveCamera) { c.aspect = G.width / Math.max(1, G.height); c.updateProjectionMatrix(); }
+    }
+    syncGone();
+  };
+  G.on('mode:start', setMode);
+  if (G.params.get('mode') === 'kea' || G.params.get('kshot')) G.on('ready', () => { if (G.mode === 'kea') stageKShot(G, { kp, kg, rg }); });
+}
+
+// KPOSES staging. Each entry: kea feet (the camera is the kea's eye, KPOSES[i] = eye + look target), view-model pose,
+// carried part, ranger stage, keagame preview. Applied only under ?shot (frozen rules) so the stills are repeatable.
+const KSTAGE = [
+  { pose: { phase: 0, flap: 0, fold: 1, pull: 1, jaw: 0.12 }, ranger: ['turn', { at: [-1.7, -2.4], lookAt: [-0.35, 2.1, 1.75], lag: 0.6, walk: 0.5 }] },
+  { pose: { phase: 0, flap: 0, fold: 0 }, part: 'wiper', fly: true, ranger: ['walk', { at: [-4.0, -1.9], yaw: -1.5 }] },
+  { pose: { phase: 0, flap: 0, fold: 1 }, ranger: ['walk', { at: [20.0, -8.0], yaw: -1.4 }] },
+  { pose: { phase: 0.6, flap: 1, fold: 0 }, part: 'cone', cone: 'carried', fly: true, ranger: ['blow', { at: [-3.0, -1.8], aimAt: [5.0, 6.0, 5.0] }] },
+  { pose: { phase: 0, flap: 0, fold: 1 }, stash: 9, cone: 'banked', ranger: ['walk', { at: [-5.0, -1.9], yaw: 0.5 }] },
+  { pose: { phase: 0.15, flap: 0.6, fold: 0 }, fly: true, ranger: ['crouch', { at: [-7.6, -6.9], face: [-8, -8] }], shake: true },
+];
+function stageKShot(G, { kp, kg, rg }) {
+  const ks = G.params.get('kshot'), cam = (G.params.get('cam') || '').split(',').map(Number);
+  let i = ks ? parseInt(String(ks).replace(/\D/g, ''), 10) - 1 : -1;
+  if (i < 0 && cam.length === 6) i = G.KPOSES.findIndex((p) => p.every((v, j) => Math.abs(v - cam[j]) < 1e-3));
+  const P = G.KPOSES[i], st = KSTAGE[i]; if (!P || !st) return;
+  const eye = kp.eyeHeight || 0.35;
+  const dx = P[3] - P[0], dy = P[4] - P[1], dz = P[5] - P[2];
+  kp.teleport([P[0], P[1] - eye, P[2]], Math.atan2(-dx, -dz));
+  if (st.fly) { kp.mode = 'fly'; kp.flying = true; kp.grounded = false; kp.perched = false; }
+  kp.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+  kp.hero = true; kp.view.pose = st.pose; kp.view.setPart(st.part || null);
+  if (st.part) kp.carrying = { kind: st.part, van: null, mesh: kp.view.part };
+  if (st.stash) for (let n = kg.banked; n < st.stash; n++) { kg.stash.add(['wiper', 'seal', 'mirror', 'strap'][n % 4]); kg.banked++; }
+  if (st.cone && kg.cone !== st.cone) {
+    kg.cone = st.cone; kg.stats.coneStatus = st.cone; if (st.cone === 'banked') kg.stash.add('cone');
+    const m = kg.group.getObjectByName('keagame:cone'); if (m) m.visible = false;
+  }
+  if (st.shake) { kg.phase = 'shake'; kg.alertT = 1.5; kg.magnitude = 1; kp.shake = 0; }
+  if (st.ranger) rg.stage(st.ranger[0], st.ranger[1]);
+  if (!ks) return;
+  window.__setCam(P.slice(0, 3), P.slice(3, 6));   // ?kshot alone: frame it too
 }
 
 // alpha-tested foliage (leaf cards, grass blades): alpha-to-coverage on the MSAA target turns the hard 1-bit edge

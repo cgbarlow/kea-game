@@ -118,7 +118,11 @@ export function create(G, { input, player, quality, path }) {
     el.end.hidden = s !== 'ended'; el.hud.hidden = s !== 'playing';
     G.paused = s !== 'playing';
     input.enabled = s === 'playing';
-    if (player) player.enabled = s === 'playing';
+    // the body that takes input: the v1 ranger in Ranger mode, the kea in Kea mode (kept on while paused/ended so the
+    // kea camera + view model do not jump; G.paused already stops its input). Showcase (hero) kea stays as staged.
+    const kp = G.mods && G.mods.keaplayer, kea = G.mode === 'kea' && !!kp;
+    if (player) player.enabled = !kea && s === 'playing';
+    if (kp && !kp.hero) kp.enabled = kea && s !== 'title';
     if (s === 'playing' && prev !== 'playing' && !shot && !U.noLock && input.mode === 'lock') input.requestLock();
     if (s === 'playing' && prev === 'title' && player && !U.noLock) G.camLocked = false;
     if (s !== 'playing' && document.pointerLockElement) document.exitPointerLock();
@@ -139,7 +143,7 @@ export function create(G, { input, player, quality, path }) {
     else if (a === 'title') { G.emit('restart'); U.setState('title'); }
   };
   el.ui.addEventListener('click', (e) => {
-    const m = e.target.closest('[data-mode]'); if (m) { U.start(m.dataset.mode); return; }
+    const m = e.target.closest('button[data-mode]'); if (m) { U.start(m.dataset.mode); return; }   // mode cards only (#ui carries data-mode too)
     // pointer lock lost mid-shift (input:unlock) → paused: a click anywhere off the buttons resumes and re-captures
     if (U.state === 'paused' && !e.target.closest('button, a, input, select, label')) { act('resume'); return; }
     const a = e.target.closest('[data-act]')?.dataset.act; if (a) act(a);
