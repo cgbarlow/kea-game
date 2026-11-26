@@ -132,7 +132,6 @@ async function main() {
   const possums = await stage('possums', () => Possums.create(G, { vans, blower, traps: A.traps || [] }), { msg: 'Setting the trap boxes', at: 0.66 });
 
   const fx = await stage('fx', () => { const f = createFX(G); f.setGround(WORLD.groundY, terrain.heightAt); f.prewarm(2); return own(f); }, { msg: 'Priming the pools', at: 0.7 });
-  void fx;
   const weather = await stage('weather', () => {
     const w = { snow: null, dust: null };
     if (wx.particles === false) return own(w); // look r2: flakes/motes read as stars and dead pixels; snow lives on the ground
@@ -168,10 +167,16 @@ async function main() {
   finalizeMaterials(G, G.scene);
   stabiliseCutouts(G.scene);
   G.camera.position.fromArray(POSES[0]); G.camera.lookAt(POSES[0][3], POSES[0][4], POSES[0][5]);
-  const extras = [...(kea.materials || []), ...(possums.materials || [])].map((material) => ({ material, kind: 'mesh' }));
-  await stage('warmup', () => Q.warmup({ extras }), { msg: 'Compiling shaders', at: 0.95 });
-  await stage('probe-capture', () => { probe.capture?.(2); return {}; }, { msg: 'Lighting the shelter', at: 0.98 });
-  await boot.finish({ warmup: false });
+  // every shader permutation the shift can reveal later (actors hidden until spawned, FX pools, blower overlay):
+  // the in-scene originals are forced visible by the warm-up; the proxies cover plain + instanced variants
+  const late = [...(kea.materials || []), ...(possums.materials || []), ...(fx.materials || [])];
+  const extras = [];
+  for (const material of late) { extras.push({ material, kind: 'mesh' }, { material, kind: 'instanced' }); }
+  await stage('probe-capture', () => { probe.capture?.(2); return {}; }, { msg: 'Lighting the shelter', at: 0.94 });
+  // the blower view model lives in its own overlay scene (post pipeline): compile it with the world
+  const ov = blower.overlay;
+  if (ov?.scene && G.renderer.compileAsync) { try { await G.renderer.compileAsync(ov.scene, ov.camera); } catch (e) { console.warn('overlay compile', e); } }
+  await boot.finish({ extras });
 }
 
 // alpha-tested foliage (leaf cards, grass blades): alpha-to-coverage on the MSAA target turns the hard 1-bit edge

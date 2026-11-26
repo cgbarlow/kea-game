@@ -1,27 +1,555 @@
 {
-  "query": "autostart=1&seed=4207",
-  "w": 1280, "h": 720,
-  "steps": [
-    { "waitFor": "__G.mods.ui && __G.mods.ui.state === 'playing'", "timeout": 8000 },
-    { "assert": "__stats().modules.every(m => m.ok)", "msg": "every boot stage ok (no stubs)" },
-    { "assert": "__G.quality.tier && __G.quality.scale > 0", "msg": "quality tier detected" },
-    { "eval": "__G.mods.player.position.toArray()", "as": "p0" },
-    { "eval": "__G.mods.player.yaw", "as": "yaw0" },
-    { "hold": "forward", "ms": 1200 },
-    { "assert": "__G.mods.player.position.distanceTo(new __G.camera.position.constructor().fromArray(__pt.p0)) > 2", "msg": "W moves the player > 2 m in 1.2 s" },
-    { "look": [300, 0] },
-    { "wait": 100 },
-    { "assert": "Math.abs(__G.mods.player.yaw - __pt.yaw0) > 0.3", "msg": "mouse look turns the player" },
-    { "press": "jump", "after": 150 },
-    { "assert": "__G.mods.player.position.y > 0.2", "msg": "Space jumps" },
-    { "wait": 900 },
-    { "assert": "__G.mods.player.grounded", "msg": "player lands again" },
-    { "move": [1, 0], "ms": 600 },
-    { "shot": "after-moves" },
-    { "press": "pause", "after": 200 },
-    { "assert": "__G.mods.ui.state === 'paused' && __G.paused", "msg": "P pauses" },
-    { "press": "pause", "after": 200 },
-    { "assert": "__G.mods.ui.state === 'playing'", "msg": "P resumes" },
-    { "assert": "__stats().calls > 0 && __stats().tris > 0", "msg": "renders geometry" }
-  ]
+ "query": "shift=90&seed=4207",
+ "w": 1280,
+ "h": 720,
+ "steps": [
+  {
+   "waitFor": "__G.mods.hud && __G.mods.hud.ui && __G.mods.hud.ui.state === 'title'",
+   "timeout": 180000
+  },
+  {
+   "assert": "__stats().modules.every(m => m.ok && !m.stub)",
+   "msg": "every boot stage ok (no stubs)"
+  },
+  {
+   "assert": "(__G.warmupStats && __G.warmupStats.programs > 0 && !__G.warmupStats.timedOut)",
+   "msg": "shader warm-up compiled every program at boot"
+  },
+  {
+   "assert": "document.querySelector('[data-mode=kea]').getAttribute('aria-disabled') === 'true' && __G.mods.hud.ui.modes.length === 2",
+   "msg": "mode selector: KEA listed + disabled"
+  },
+  {
+   "eval": "__G.t",
+   "as": "tt"
+  },
+  {
+   "waitFor": "__G.t > __pt.tt + 1",
+   "timeout": 20000
+  },
+  {
+   "shot": "title"
+  },
+  {
+   "eval": "document.querySelector('[data-mode=kea]').click()"
+  },
+  {
+   "wait": 200
+  },
+  {
+   "assert": "__G.mods.hud.ui.state === 'title' && !__G.mode",
+   "msg": "KEA (coming soon) does not start"
+  },
+  {
+   "eval": "document.querySelector('#title [data-act=settings]').click()"
+  },
+  {
+   "wait": 200
+  },
+  {
+   "assert": "__G.mods.hud.ui.state === 'settings'",
+   "msg": "settings opens from title"
+  },
+  {
+   "eval": "(() => { const f = document.querySelector('#settings form'); f.elements.sens.value = 1.4; f.elements.fov.value = 78; f.dispatchEvent(new Event('input', {bubbles:true})); return __G.mods.hud.ui.settings.sens; })()",
+   "as": "sens"
+  },
+  {
+   "assert": "Math.abs(__G.mods.hud.ui.settings.sens - 1.4) < 0.01 && Math.abs(__G.camera.fov - 78) < 0.5",
+   "msg": "settings apply sensitivity + FOV"
+  },
+  {
+   "shot": "settings"
+  },
+  {
+   "eval": "document.querySelector('#settings [data-act=back]').click()"
+  },
+  {
+   "wait": 200
+  },
+  {
+   "assert": "__G.mods.hud.ui.state === 'title'",
+   "msg": "settings back to title"
+  },
+  {
+   "eval": "document.querySelector('[data-mode=ranger]').focus()"
+  },
+  {
+   "key": "Enter"
+  },
+  {
+   "waitFor": "__G.mods.hud.ui.state === 'playing'",
+   "timeout": 10000
+  },
+  {
+   "assert": "__G.mode === 'ranger' && __G.mods.game.state === 'shift'",
+   "msg": "Enter on RANGER starts the shift (G.mode = ranger)"
+  },
+  {
+   "assert": "['lock','drag'].includes(__G.input.mode)",
+   "msg": "pointer lock or drag fallback active"
+  },
+  {
+   "assert": "__G.mods.game.shiftLength === 90 && __G.mods.game.state === 'shift'",
+   "msg": "?shift=90 shortens the shift"
+  },
+  {
+   "eval": "__G.mods.game.player.position.toArray()",
+   "as": "p0"
+  },
+  {
+   "eval": "__G.mods.game.player.yaw",
+   "as": "yaw0"
+  },
+  {
+   "look": [
+    240,
+    0
+   ]
+  },
+  {
+   "wait": 120
+  },
+  {
+   "waitFor": "Math.abs(__G.mods.game.player.yaw - __pt.yaw0) > 0.2",
+   "timeout": 10000
+  },
+  {
+   "assert": "Math.abs(__G.mods.game.player.yaw - __pt.yaw0) > 0.2",
+   "msg": "mouse look turns the player"
+  },
+  {
+   "look": [
+    -240,
+    0
+   ]
+  },
+  {
+   "wait": 120
+  },
+  {
+   "eval": "__G.mods.game.player.position.toArray()",
+   "as": "ps"
+  },
+  {
+   "eval": "__input.hold('sprint', 900); __input.setMove(0, 1, 900)"
+  },
+  {
+   "eval": "__G.t",
+   "as": "ts"
+  },
+  {
+   "waitFor": "__G.t > __pt.ts + 0.95",
+   "timeout": 30000
+  },
+  {
+   "eval": "__G.mods.game.player.position.distanceTo(new __G.camera.position.constructor().fromArray(__pt.ps))",
+   "as": "sprintDist"
+  },
+  {
+   "assert": "__pt.sprintDist > 2",
+   "msg": "W + Shift sprints"
+  },
+  {
+   "shot": "play"
+  },
+  {
+   "press": "pause",
+   "after": 300
+  },
+  {
+   "assert": "__G.mods.hud.ui.state === 'paused' && __G.paused",
+   "msg": "pause key opens pause"
+  },
+  {
+   "eval": "__G.mods.game.timeLeft",
+   "as": "tp"
+  },
+  {
+   "wait": 600
+  },
+  {
+   "assert": "__G.mods.game.timeLeft === __pt.tp",
+   "msg": "shift clock frozen while paused"
+  },
+  {
+   "shot": "pause"
+  },
+  {
+   "eval": "document.querySelector('#pause [data-act=resume]').click()"
+  },
+  {
+   "wait": 200
+  },
+  {
+   "assert": "__G.mods.hud.ui.state === 'playing' && !__G.paused",
+   "msg": "resume"
+  },
+  {
+   "eval": "__input.look(0, 0); __input.setMove(0, -1, 900)"
+  },
+  {
+   "eval": "__G.t",
+   "as": "ts"
+  },
+  {
+   "waitFor": "__G.t > __pt.ts + 0.95",
+   "timeout": 30000
+  },
+  {
+   "eval": "__input.setMove(-1, 0, 30000)"
+  },
+  {
+   "waitFor": "__G.mods.game.coverOk",
+   "timeout": 180000
+  },
+  {
+   "eval": "__input.clear()"
+  },
+  {
+   "wait": 300
+  },
+  {
+   "assert": "__G.mods.game.coverOk",
+   "msg": "strafed to the picnic table at (8,-8): cover detected"
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'alert'",
+   "timeout": 180000
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'alert' && __G.mods.game.player.shake > 0",
+   "timeout": 10000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('crouch', 9400)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 9.55",
+   "timeout": 180000
+  },
+  {
+   "assert": "__G.mods.game.stats.held === 1 && __G.mods.game.strikes === 0",
+   "msg": "aftershock 1 held"
+  },
+  {
+   "assert": "__G.mods.game.stats.exemplary === 1 && __G.mods.game.stats.bonus > 0",
+   "msg": "cover bonus: exemplary hold revises the estimate"
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('fire', 1200)"
+  },
+  {
+   "wait": 400
+  },
+  {
+   "waitFor": "__G.mods.blower.firing && __G.mods.blower.power > 0",
+   "timeout": 20000
+  },
+  {
+   "assert": "__G.mods.blower.firing && __G.mods.blower.power > 0",
+   "msg": "LMB blows"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 1.3",
+   "timeout": 60000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('aim', 900); __input.hold('fire', 900)"
+  },
+  {
+   "wait": 400
+  },
+  {
+   "waitFor": "__G.mods.blower.turbo",
+   "timeout": 20000
+  },
+  {
+   "assert": "__G.mods.blower.turbo",
+   "msg": "RMB turbo"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 1.3",
+   "timeout": 60000
+  },
+  {
+   "press": "jump",
+   "after": 0
+  },
+  {
+   "waitFor": "__G.mods.game.player.position.y > 0.1",
+   "timeout": 20000
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 1.3",
+   "timeout": 60000
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'alert' || __G.mods.game.state !== 'shift'",
+   "timeout": 180000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('crouch', 9400)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 9.55",
+   "timeout": 180000
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'alert' || __G.mods.game.state !== 'shift'",
+   "timeout": 180000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('crouch', 9400)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 9.55",
+   "timeout": 180000
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'alert' || __G.mods.game.state !== 'shift'",
+   "timeout": 180000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('crouch', 9400)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 9.55",
+   "timeout": 180000
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'alert' || __G.mods.game.state !== 'shift'",
+   "timeout": 180000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('crouch', 9400)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 9.55",
+   "timeout": 180000
+  },
+  {
+   "waitFor": "__G.mods.game.state !== 'shift'",
+   "timeout": 180000
+  },
+  {
+   "eval": "JSON.stringify(__G.mods.game.stats)",
+   "as": "winStats"
+  },
+  {
+   "eval": "__G.mods.vans.list.map(v => +v.integrity.toFixed(3))",
+   "as": "winVans"
+  },
+  {
+   "assert": "__G.mods.game.state === 'won' && __G.mods.game.reason === 'reopened'",
+   "msg": "WIN: SH73 reopens at timer 0"
+  },
+  {
+   "assert": "__G.mods.game.strikes === 0",
+   "msg": "no strikes on the compliant run"
+  },
+  {
+   "assert": "__G.mods.hud.ui.state === 'ended' && __G.paused",
+   "msg": "end screen up, world paused"
+  },
+  {
+   "assert": "__G.mods.game.director.stats.keaArrivals > 0 && __G.mods.game.director.stats.possumArrivals > 0",
+   "msg": "director sent kea and possums"
+  },
+  {
+   "shot": "win"
+  },
+  {
+   "eval": "document.querySelector('[data-act=restart]').click()"
+  },
+  {
+   "waitFor": "__G.mods.hud.ui.state === 'playing'",
+   "timeout": 180000
+  },
+  {
+   "assert": "__G.mods.game.state === 'shift' && __G.mods.game.timeLeft > 85 && __G.mods.game.strikes === 0 && __G.mods.game.stats.held === 0",
+   "msg": "restart resets the rules"
+  },
+  {
+   "assert": "__G.mods.vans.list.every(v => v.integrity === 1) && __G.mods.kea.active() === 0 && __G.mods.possums.active() === 0",
+   "msg": "restart resets vans and wildlife"
+  },
+  {
+   "assert": "__G.mods.game.player.position.distanceTo(new __G.camera.position.constructor(2, 0, -9)) < 0.5",
+   "msg": "restart respawns the ranger"
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'shake'",
+   "timeout": 180000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('fire', 6200)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 6.35",
+   "timeout": 180000
+  },
+  {
+   "assert": "__G.mods.game.strikes === 1",
+   "msg": "blowing through a shake = strike 1"
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'shake'",
+   "timeout": 180000
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.setMove(0, 1, 6200)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 6.35",
+   "timeout": 180000
+  },
+  {
+   "assert": "__G.mods.game.strikes === 2",
+   "msg": "walking through a shake = strike 2"
+  },
+  {
+   "waitFor": "__G.mods.game.phase === 'shake'",
+   "timeout": 180000
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "assert": "__G.mods.game.player.shake > 0.3",
+   "msg": "shake is strong mid-quake"
+  },
+  {
+   "shot": "shake"
+  },
+  {
+   "eval": "__G.t",
+   "as": "t"
+  },
+  {
+   "eval": "__input.hold('fire', 3800)"
+  },
+  {
+   "waitFor": "__G.t > __pt.t + 3.95",
+   "timeout": 180000
+  },
+  {
+   "waitFor": "__G.mods.game.state !== 'shift'",
+   "timeout": 180000
+  },
+  {
+   "assert": "__G.mods.game.state === 'lost' && __G.mods.game.reason === 'stood-down' && __G.mods.game.strikes === 3",
+   "msg": "LOSE: three strikes = stood down"
+  },
+  {
+   "assert": "__G.mods.hud.ui.state === 'ended'",
+   "msg": "end screen after stood down"
+  },
+  {
+   "shot": "lose-strikes"
+  },
+  {
+   "eval": "document.querySelector('[data-act=restart]').click()"
+  },
+  {
+   "waitFor": "__G.mods.hud.ui.state === 'playing' && __G.mods.game.state === 'shift'",
+   "timeout": 180000
+  },
+  {
+   "wait": 500
+  },
+  {
+   "eval": "__G.mods.vans.list[1].damage(0.6, 'possum'); __G.mods.vans.list[1].integrity"
+  },
+  {
+   "wait": 200
+  },
+  {
+   "eval": "__G.mods.vans.list[1].damage(0.6, 'possum'); __G.mods.vans.list[1].integrity"
+  },
+  {
+   "waitFor": "__G.mods.game.state !== 'shift'",
+   "timeout": 180000
+  },
+  {
+   "assert": "__G.mods.game.state === 'lost' && __G.mods.game.reason === 'review:B'",
+   "msg": "LOSE: van B integrity 0 = a tourist has left a review"
+  },
+  {
+   "shot": "lose-review"
+  },
+  {
+   "eval": "document.querySelector('[data-act=restart]').click()"
+  },
+  {
+   "waitFor": "__G.mods.game.state === 'shift' && __G.mods.hud.ui.state === 'playing'",
+   "timeout": 180000
+  },
+  {
+   "assert": "__G.mods.vans.list[1].integrity === 1",
+   "msg": "second restart restores van B"
+  },
+  {
+   "click": [
+    640,
+    360
+   ]
+  },
+  {
+   "waitFor": "__G.mods.audio.ready && __G.mods.audio.mixer.ctx.state === 'running'",
+   "timeout": 60000
+  },
+  {
+   "eval": "__audioSelfTest({verbose:false}).then(r => (window.__st = r, r.pass + ' ' + r.count + ' ' + r.failed.join(',')))",
+   "as": "stp"
+  },
+  {
+   "waitFor": "window.__st",
+   "timeout": 120000
+  },
+  {
+   "assert": "window.__st.pass",
+   "msg": "audio self-test: peak <= -1 dBFS, no NaN, none silent"
+  },
+  {
+   "eval": "JSON.stringify(__stats().modules.filter(m=>m.stub).map(m=>m.name))",
+   "as": "stubs"
+  }
+ ]
 }
