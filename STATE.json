@@ -3,11 +3,11 @@
   "phase": "build",
   "round": 0,
   "created": "2026-11-25T22:37:08.492Z",
-  "updated": "2026-11-26T03:32:56.647Z",
+  "updated": "2026-11-26T03:44:01.537Z",
   "best": {
-    "score": 5.93,
+    "score": 6.4,
     "round": 0,
-    "shots": "shots/round-01",
+    "shots": "shots/round-02",
     "build": "dist/index.html"
   },
   "scores": [
@@ -16,6 +16,12 @@
       "score": 5.93,
       "t": "2026-11-26T02:45:39.777Z",
       "shots": "shots/round-01"
+    },
+    {
+      "round": 0,
+      "score": 6.4,
+      "t": "2026-11-26T03:44:01.535Z",
+      "shots": "shots/round-02"
     }
   ],
   "gates": {

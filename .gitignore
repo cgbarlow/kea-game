@@ -4,3 +4,5 @@ shots
 *.tmp
 bench-*.json
 .workflow/
+bench-*.log
+bench.done
