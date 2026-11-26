@@ -92,8 +92,10 @@ export function create(G, { input } = {}) {
 
   B.update = (dt) => {
     if (!scene.environment && G.env) scene.environment = G.env;
-    const wantFire = B.enabled && !B.overheated && (B.forceFire || (!G.paused && !!(input && input.down('fire'))));
-    B.turbo = wantFire && !!(input && input.down('aim'));
+    // LMB blows; RMB blows at turbo on its own (no need to hold both).
+    const wantTurbo = !G.paused && !!(input && input.down('aim'));
+    const wantFire = B.enabled && !B.overheated && (B.forceFire || wantTurbo || (!G.paused && !!(input && input.down('fire'))));
+    B.turbo = wantFire && wantTurbo;
     B.firing = wantFire;
     B.power += ((wantFire ? (B.turbo ? 1 : 0.85) : 0) - B.power) * Math.min(1, dt * (wantFire ? 5 : 3));
     B.heat = Math.max(0, Math.min(1, B.heat + dt * (wantFire ? (B.turbo ? 0.16 : 0.07) : -0.12)));
