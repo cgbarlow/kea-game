@@ -91,6 +91,8 @@ playtest.json that reaches win (shortened via `?shift=`) and lose. Zero allocati
 `src/ui/ui.css`, `template.html`. Departmental-voice HUD (timer "REOPENING ESTIMATE (NOT GUARANTEED)", van plates with
 tourist names, blower temp, DROP/COVER/HOLD banner with a 3 s countdown, strikes, toast feed), title/pause/settings/end
 screens styled like DOC signage (green/cream, condensed caps), end-screen stats + restart. Must not show in `?shot`.
+Title screen MUST include the mode selector from SPEC.md UI: RANGER (playable) + KEA (disabled, "COMING SOON" —
+v2). Data-driven modes list, sets G.mode = 'ranger'; game starts only from Ranger. Playtest must still start via Ranger.
 
 ## 9. audio (wave 3)
 `create(G, {blower}) → { mixer, music, play, setVolume, unlock, update }`. Two-stroke blower (idle/rev/turbo layers

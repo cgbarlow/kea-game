@@ -61,6 +61,11 @@ GAMEPLAY
   Win: SH73 reopens (timer 0). Lose: any van integrity 0 ("A tourist has left a review") or 3 procedure strikes ("stood down").
 - UI: title (live fly along PATH), settings (tier, sensitivity, FOV, volume, invert Y), pause, HUD (reopening estimate,
   van plates, blower temp, aftershock banner, strikes, toast feed in departmental voice), end screen (stats + restart).
+- MODE SELECTOR (v1 requirement): the title screen shows a mode choice before play: "RANGER" (selectable, starts the
+  v1 game) and "KEA" (visible but disabled, tagged "COMING SOON" in departmental voice, e.g. "Pending risk assessment").
+  Ranger is the default focus; Enter/click starts it. Kea is not built in v1: it must not be playable, but store the chosen
+  mode as G.mode = 'ranger' and keep the selector data-driven (a modes list with {id, label, enabled, note}) so v2 can
+  add the playable Kea mode by enabling that entry. Keyboard (arrows/Enter) and mouse both work.
 
 VERIFICATION
 - Visual critic: a separate blind subagent sees ONLY renders: 6 poses captured in GPU Chrome by tools/capture.mjs --critic
