@@ -43,7 +43,8 @@
         <button class="btn" data-act="settings" data-nav>Settings</button>
       </nav>
     </div>
-    <p class="hint"><b>WASD</b> move &nbsp; <b>Shift</b> sprint &nbsp; <b>LMB</b> blow &nbsp; <b>RMB</b> turbo &nbsp; <b>C</b> drop / hold &nbsp; <b>Esc</b> pause</p>
+    <p class="hint" data-hint="ranger"><b>WASD</b> move &nbsp; <b>Shift</b> sprint &nbsp; <b>LMB</b> blow &nbsp; <b>RMB</b> turbo &nbsp; <b>C</b> drop / hold &nbsp; <b>Esc</b> pause</p>
+    <p class="hint" data-hint="kea" hidden><b>WASD</b> hop &nbsp; <b>Space</b> flap &nbsp; <b>Shift</b> dive &nbsp; <b>LMB</b> pull &nbsp; <b>RMB</b> squawk &nbsp; <b>Esc</b> pause</p>
     <p class="fineprint">Ranger-issue leaf blower supplied. Hearing protection available on request (form DPC-114, allow 6&ndash;8 weeks).<br>Source code and public records: <a class="repo-link" href="https://github.com/cgbarlow/kea-game" target="_blank" rel="noopener">github.com/cgbarlow/kea-game</a></p>
   </section>
 
@@ -106,19 +107,35 @@
   <div id="hud" class="hud ui hud-play" hidden>
     <div class="hud-top">
       <div class="hud-timer">
-        <span class="t-line"><span class="t-label">SH73 reopening in</span> <span class="t-clock" data-h="clock">07:00</span> <span class="t-note">(estimate not guaranteed)</span></span>
+        <span class="t-line"><span class="t-label ranger-only">SH73 reopening in</span><span class="t-label kea-only">Highway reopening in</span> <span class="t-clock" data-h="clock">07:00</span> <span class="t-note">(estimate not guaranteed)</span></span>
         <span class="t-track"><i data-h="track"></i></span>
       </div>
-      <div class="hud-ticker"><b>NZTA advisory</b><span data-h="ticker"></span></div>
+      <div class="hud-ticker"><b class="ranger-only">NZTA advisory</b><b class="kea-only">Department advisory</b><span data-h="ticker"></span></div>
     </div>
     <div class="hud-left">
-      <div class="hud-objective" data-bind="objective">Protect the campervans. Do not feed the kea.</div>
+      <div class="hud-objective ranger-only" data-bind="objective">Protect the campervans. Do not feed the kea.</div>
+      <div class="hud-objective kea-only">Kea must not take 9 parts and the cone to the scree</div>
+      <div class="kea-research kea-only">
+        <p class="k-head">Items held for research</p>
+        <div class="k-count"><b data-k="banked">0</b><span>of 9</span></div>
+        <span class="k-pips" data-k="pips"></span>
+        <div class="k-row"><span class="k-label">Road cone</span><span class="k-val" data-k="cone">At the gate</span></div>
+        <div class="k-row"><span class="k-label">In beak</span><span class="k-val" data-k="carry">Nothing (officially)</span></div>
+      </div>
       <div class="hud-vans" data-h="vans"><p class="v-head">Campervan register</p></div>
     </div>
-    <div class="hud-strikes">
+    <div class="hud-strikes ranger-only">
       <span class="s-label">Procedure strikes</span>
       <span class="s-boxes"><i></i><i></i><i></i></span>
       <span class="s-note" data-h="strikeNote">3 strikes = stood down</span>
+    </div>
+    <div class="hud-strikes hud-notices kea-only">
+      <span class="s-label">Notices received</span>
+      <span class="s-boxes n-boxes" data-k="notices"><i></i><i></i><i></i></span>
+      <span class="s-note" data-k="noticeNote">3 notices = relocation</span>
+      <span class="s-label">Offended</span>
+      <span class="o-pips" data-k="offended"><i></i><i></i><i></i></span>
+      <span class="s-note" data-k="offNote">Not yet</span>
     </div>
     <div class="hud-banner" data-h="banner">
       <span class="b-top" data-h="bTop">Aftershock alert</span>
@@ -127,11 +144,17 @@
       <span class="b-sub" data-h="bSub"></span>
     </div>
     <div class="crosshair" aria-hidden="true"><i></i></div>
+    <div class="kea-pull kea-only" data-k="pull" aria-hidden="true"></div>
     <div class="hud-prompt" data-bind="prompt"></div>
     <div class="hud-subtitle" data-bind="subtitle"></div>
     <div class="hud-bl">
       <div class="hud-toasts" data-h="toasts"></div>
-      <div class="hud-heat" data-h="heat">
+      <div class="hud-heat hud-wing kea-only" data-k="wing">
+        <span class="h-label">Wing capacity</span>
+        <span class="h-state" data-k="wingState">Adequate</span>
+        <span class="h-segs" data-k="wingSegs"></span>
+      </div>
+      <div class="hud-heat ranger-only" data-h="heat">
         <span class="h-label">Blower temp</span>
         <span class="h-state" data-h="heatState">Nominal</span>
         <span class="h-segs" data-h="segs"></span>

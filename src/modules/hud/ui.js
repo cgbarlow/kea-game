@@ -1,10 +1,10 @@
 // hud/ui — menu state machine over the DOM in template.html:
 //   boot → title (live PATH flyover + mode selector) → playing ⇄ paused, settings, ended.
 //   create(G, { input, player, quality, path }) → { state, settings, modes, setState(s), set(bind, v), start(modeId), update }
-// Mode selector is data-driven (MODES): v1 ships RANGER; KEA is listed, disabled and tagged "coming soon" until v2
-// enables the entry. start() only ever accepts an enabled mode and sets G.mode.
+// Mode selector is data-driven (MODES): RANGER (v1) and KEA (v2). start() only ever accepts an enabled mode, sets G.mode
+// (+ #ui[data-mode]) and emits 'mode:start' (id) before 'playing'; the end/pause "restart" re-emits it for the same mode.
 // Keyboard: arrows move focus between the visible screen's [data-nav] controls (left/right across mode cards),
-// Enter/Space activates. ?shot=1 / ?autostart=1 skip the title by starting RANGER (captures, playtest bot).
+// Enter/Space activates. ?shot=1 / ?autostart=1 skip the title by starting RANGER, or KEA with ?mode=kea.
 // Settings persist in localStorage (try/catch; never read under ?shot so captures stay deterministic).
 // Sets G.paused while not playing (player/actors idle on it).
 import { CatmullRomCurve3, Vector3 } from 'three';
@@ -12,8 +12,8 @@ import { CatmullRomCurve3, Vector3 } from 'three';
 export const MODES = [
   { id: 'ranger', label: 'Ranger', enabled: true, tag: 'Rostered',
     note: 'Seven-minute shift. Protect three campervans from kea and possums with the ranger-issue leaf blower.' },
-  { id: 'kea', label: 'Kea', enabled: false, tag: 'Coming soon',
-    note: 'Pending risk assessment. The kea have requested representation.' },
+  { id: 'kea', label: 'Kea', enabled: true, tag: 'Rostered (reluctantly)', go: 'Proceed anyway ▸',
+    note: 'Risk assessment complete. Risk confirmed. Play the kea: strip rubber from the campervans and take the Department\'s road cone.' },
 ];
 
 // Render resolution (settings menu), data-driven like MODES. 'auto' = dynamic resolution (engine/quality.js); a number
@@ -79,8 +79,9 @@ export function create(G, { input, player, quality, path }) {
     b.dataset.mode = m.id; b.dataset.nav = ''; b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', m.id === 'ranger' ? 'true' : 'false');
     if (!m.enabled) b.setAttribute('aria-disabled', 'true');
-    b.innerHTML = `<span class="m-tag"></span><span class="m-label"></span><span class="m-note"></span>${m.enabled ? '<span class="m-go">Begin shift ▸</span>' : ''}`;
+    b.innerHTML = `<span class="m-tag"></span><span class="m-label"></span><span class="m-note"></span>${m.enabled ? '<span class="m-go"></span>' : ''}`;
     b.querySelector('.m-tag').textContent = m.tag; b.querySelector('.m-label').textContent = m.label; b.querySelector('.m-note').textContent = m.note;
+    if (m.enabled) b.querySelector('.m-go').textContent = m.go || 'Begin shift ▸';
     modesEl.appendChild(b); cards.push(b);
   }
   U.start = (id) => {
@@ -91,8 +92,17 @@ export function create(G, { input, player, quality, path }) {
       G.emit('ui:denied', id);
       return false;
     }
-    G.mode = m.id; U.setState('playing'); return true;
+    G.mode = m.id; el.ui.dataset.mode = m.id;
+    G.emit('mode:start', m.id);   // integration hook: enable this mode's modules (fires before 'playing')
+    U.setState('playing'); return true;
   };
+  // the controls hint follows the focused / hovered mode card
+  const hints = el.title ? el.title.querySelectorAll('[data-hint]') : [];
+  const showHint = (id) => { for (const h of hints) h.hidden = h.dataset.hint !== id; };
+  if (modesEl) {
+    const onMode = (e) => { const c = e.target.closest?.('[data-mode]'); if (c) showHint(c.dataset.mode === 'kea' ? 'kea' : 'ranger'); };
+    modesEl.addEventListener('focusin', onMode); modesEl.addEventListener('mouseover', onMode);
+  }
 
   // ---- state machine ----
   const focusFirst = (s) => {
@@ -125,7 +135,7 @@ export function create(G, { input, player, quality, path }) {
     if (a === 'resume') U.setState('playing');
     else if (a === 'settings') { back = U.state; U.setState('settings'); }
     else if (a === 'back') U.setState(back);
-    else if (a === 'restart') { G.emit('restart'); U.setState('playing'); }
+    else if (a === 'restart') { G.emit('restart'); if (G.mode) G.emit('mode:start', G.mode); U.setState('playing'); }   // same mode again
     else if (a === 'title') { G.emit('restart'); U.setState('title'); }
   };
   el.ui.addEventListener('click', (e) => {
@@ -176,6 +186,11 @@ export function create(G, { input, player, quality, path }) {
     }
   };
   const auto = shot || G.params.get('autostart');
-  G.on('ready', () => { if (U.state !== 'boot') return; if (auto) U.start('ranger'); else U.setState('title'); });
+  const qMode = MODES.find((m) => m.id === G.params.get('mode') && m.enabled)?.id || 'ranger';   // ?mode=kea
+  G.on('ready', () => {
+    if (U.state !== 'boot') return;
+    if (auto) U.start(qMode);
+    else { U.setState('title'); if (qMode !== 'ranger') { const c = cards.find((x) => x.dataset.mode === qMode); if (c) try { c.focus({ preventScroll: true }); } catch (e) { /* ignore */ } } }
+  });
   return U;
 }

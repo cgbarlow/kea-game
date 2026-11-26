@@ -11,6 +11,7 @@ import { create as createUI } from './ui.js';
 import { create as createFps } from './fps.js';
 import { LIVERY } from '../vans/livery.js';
 import { END_TEXT, REVIEWS, VAN_STATUS, HEAT_STATE, RATINGS, ALERT_COPY, TOASTS, TICKER } from './copy.js';
+import { KEA_COPY, KEA_ALERT, KEA_TICKER, KEA_END, KEA_RATINGS, CONE_STATUS, CONE_HUD, PART_NAME } from '../keagame/copy.js';
 
 const SEGS = 14, TOAST_N = 4, TOAST_LIFE = 7;
 const SHOW_CAM = [2, 1.68, -9], SHOW_TARGET = [-1, 1.5, 4];
@@ -27,7 +28,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   const N = { clock: q('clock'), track: q('track'), banner: q('banner'), bTop: q('bTop'), bCount: q('bCount'), bSub: q('bSub'),
     toasts: q('toasts'), ticker: q('ticker'), heat: q('heat'), heatState: q('heatState'), segs: q('segs'), vans: q('vans'), strikeNote: q('strikeNote') };
   const timerEl = hud.querySelector('.hud-timer'), cross = hud.querySelector('.crosshair');
-  const strikeBoxes = hud.querySelectorAll('.s-boxes i');
+  const strikeBoxes = hud.querySelectorAll('.hud-strikes.ranger-only .s-boxes i');
   const segs = []; for (let i = 0; i < SEGS; i++) { const s = mk('', N.segs, 'i'); s.className = i >= SEGS * 0.8 ? 'hot' : i >= SEGS * 0.5 ? 'warm' : ''; segs.push(s); }
 
   // campervan register: one plate per van (rego from the livery, tourist names from LAYOUT)
@@ -39,8 +40,23 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
     const status = mk('v-status', body);
     const pct = mk('v-pct', p);
     const bar = mk('v-bar', p); const fill = mk('', bar, 'i');
-    return { v, p, status, pct, fill, last: -1, lastS: -1, hitOn: false, hitUntil: -1, warned: false };
+    return { v, p, status, pct, fill, last: -1, lastS: -1, hitOn: false, hitUntil: -1, warned: false, lockOn: false };
   });
+
+  // ---- Kea mode panels (G.mode === 'kea'; #ui[data-mode] toggles .kea-only / .ranger-only in ui.css) ----
+  const kg = G.mods.keagame || null;               // staged before the hud
+  const kp = () => G.mods.keaplayer || null;
+  const KQ = (k) => hud.querySelector(`[data-k="${k}"]`);
+  const KN = { banked: KQ('banked'), pips: KQ('pips'), cone: KQ('cone'), carry: KQ('carry'), notices: KQ('notices'), noticeNote: KQ('noticeNote'),
+    offended: KQ('offended'), offNote: KQ('offNote'), wing: KQ('wing'), wingState: KQ('wingState'), wingSegs: KQ('wingSegs'), pull: KQ('pull') };
+  const noticeBoxes = KN.notices ? KN.notices.querySelectorAll('i') : [], offPips = KN.offended ? KN.offended.querySelectorAll('i') : [];
+  const kPips = []; if (KN.pips) for (let i = 0; i < 9; i++) kPips.push(mk('', KN.pips, 'i'));
+  const wingSegs = []; if (KN.wingSegs) for (let i = 0; i < SEGS; i++) wingSegs.push(mk('', KN.wingSegs, 'i'));
+  const PULL_P = []; for (let i = 0; i <= 20; i++) PULL_P.push(String(i / 20));
+  const NOTICE_NOTE = ['3 notices = relocation', 'On file. Read it.', 'Final notice pending', 'Relocation scheduled'];
+  const OFF_NOTE = ['Not yet', 'Mildly', 'Considerably', 'Maximum (provisional)'];
+  const WING_STATE = [[0.25, 'Low. Land somewhere.'], [0.6, 'Adequate'], [1.01, 'Full (unauthorised)']];
+  const K = { banked: -1, cone: '', carry: '#', notices: -1, off: -1, wingN: -1, wingS: -1, pull: -1, mode: '' };
 
   // ---- tiny guarded writers (no allocation, no churn) ----
   const cache = new Map();
@@ -63,7 +79,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   for (let i = 0; i < TOAST_N; i++) { const n = mk('toast', N.toasts, 'div'); const ts = mk('t-time', n); const tx = mk('t-text', n); toastPool.push({ n, ts, tx, t: 0, on: false }); }
   let lastToast = '', lastToastAt = -99;
   const stamp = () => {
-    const src = demo || game;
+    const src = demo || (G.mode === 'kea' && kg ? kg : game);
     const el = src ? src.shiftLength - src.timeLeft : 0;
     const mins = 16 * 60 + 40 + Math.floor(el / 6);
     const h = Math.floor(mins / 60) % 24, m = mins % 60;
@@ -86,18 +102,23 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
   const keaToastAt = new Map();
   G.on('game:toast', H.toast);
   G.on('kea:land', (k, v) => {
-    if (!v) return;
+    if (!v || G.mode === 'kea') return;              // kea mode: keagame writes its own perch notices
     const off = k?.offended || 0;
     if (off > 0) { H.toast(TOASTS.keaOffended(v.name, off)); return; }
     if (G.t - (keaToastAt.get(v.id) ?? -99) > 14) { keaToastAt.set(v.id, G.t); H.toast(TOASTS.keaLand(v.name)); }
   });
-  G.on('possum:raid', (p, v) => { if (v) H.toast(TOASTS.raid(v.name)); });
+  G.on('possum:raid', (p, v) => { if (v && G.mode !== 'kea') H.toast(TOASTS.raid(v.name)); });
   G.on('van:damage', (v) => { const pl = plates.find((x) => x.v === v); if (pl) pl.hitUntil = G.t + 0.45; });
   G.on('game:strike', (n) => H.toast(TOASTS.strike(n)));
-  G.on('game:alert', (kind, ok, cover) => { if (kind === 'clear') H.toast(ok ? (cover ? TOASTS.clearCover : TOASTS.clearOk) : TOASTS.clearBad); });
-  // the view model belongs to the shift, not the title flyover
-  G.on('ui:state', (s) => { if (blower?.overlay?.scene) blower.overlay.scene.visible = s !== 'title'; });
-  G.on('ui:state', (s, prev) => { if (s === 'playing' && (prev === 'title' || prev === 'boot')) { clearToasts(); H.toast(TOASTS.start); H.toast(TOASTS.sign); } });
+  G.on('game:alert', (kind, ok, cover) => { if (kind === 'clear' && G.mode !== 'kea') H.toast(ok ? (cover ? TOASTS.clearCover : TOASTS.clearOk) : TOASTS.clearBad); });
+  // the view model belongs to the shift, not the title flyover (and not to the kea)
+  G.on('ui:state', (s) => { if (blower?.overlay?.scene) blower.overlay.scene.visible = s !== 'title' && G.mode !== 'kea'; });
+  const startToasts = () => {
+    clearToasts();
+    if (G.mode === 'kea') { H.toast(KEA_COPY.start[0]); H.toast(KEA_COPY.start[1]); } else { H.toast(TOASTS.start); H.toast(TOASTS.sign); }
+  };
+  G.on('ui:state', (s, prev) => { if (s === 'playing' && (prev === 'title' || prev === 'boot')) startToasts(); });
+  G.on('mode:start', (id) => { if (id === 'kea' && ui.state === 'ended') startToasts(); });   // kea restart from the end screen
   G.on('restart', () => { clearToasts(); for (const p of plates) { p.warned = false; p.hitUntil = -1; } wasHot = false; });
 
   // ---- end screen (incident report) ----
@@ -126,7 +147,27 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
     const score = (won ? 0.35 : 0) + 0.45 * avg + 0.2 * (aft ? held / aft : 1) - 0.08 * strikes;
     E.rating.textContent = (RATINGS.find((r) => score > r[0]) || RATINGS[RATINGS.length - 1])[1];
   }
+  function fillKeaEnd(won, reason, st) {
+    const T = KEA_END[reason] || KEA_END['kea:reopened'];
+    E.kicker.textContent = T.kicker; E.heading.textContent = T.heading; E.sub.textContent = T.sub;
+    endEl.dataset.won = won ? '1' : '0';
+    const q = st.quota || 9, parts = st.parts || 0, served = st.served || 0;
+    const rows = [
+      ['Shift observed', fmtTime(served) + ' of ' + fmtTime(kg?.shiftLength || 420)],
+      ['Items held for research', `${parts} of ${q}`],
+      ['Wiper blades · seals · mirrors · straps', `${st.wiper || 0} · ${st.seal || 0} · ${st.mirror || 0} · ${st.strap || 0}`],
+      ['Road cone', CONE_STATUS[st.coneStatus] || CONE_STATUS.gate],
+      ['Notices received', `${st.notices || 0} of 3`],
+      ['Times offended', String(st.offended || 0)],
+      ['Aftershocks observed (not held)', String(st.aftershocks || 0)],
+    ];
+    E.stats.textContent = '';
+    for (const [k, v] of rows) { const dt = mk('', E.stats, 'dt'); dt.textContent = k; const dd = mk('', E.stats, 'dd'); dd.textContent = v; }
+    const score = 0.5 * Math.min(1, parts / q) + (st.coneStatus === 'banked' ? 0.3 : 0) + (won ? 0.2 : 0) - 0.06 * (st.notices || 0);
+    E.rating.textContent = (KEA_RATINGS.find((r) => score > r[0]) || KEA_RATINGS[KEA_RATINGS.length - 1])[1];
+  }
   G.on('game:end', (won, reason, stats) => {
+    if (G.mode === 'kea') { fillKeaEnd(won, reason, stats || {}); ui.setState('ended'); return; }
     const ints = plates.map((p) => ({ name: p.v.name, rego: LIVERY[p.v.id]?.rego || p.v.id, i: p.v.integrity }));
     fillEnd(won, reason, stats || {}, game?.strikes || 0, game ? game.shiftLength - game.timeLeft : 0, ints);
     ui.setState('ended');
@@ -162,16 +203,23 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
     fps.update();
     ui.update(dt);
     if (!demo) for (const s of toastPool) if (s.on) { s.t -= dt; if (s.t <= 0) { s.on = false; s.n.classList.remove('on'); } }
-    if (ui.state !== 'playing' || !game) return;
-    const S = demo || game;
+    const kMode = G.mode === 'kea' && !!kg;
+    if (K.mode !== (kMode ? 'kea' : 'ranger')) {      // mode switch: re-key every cached writer
+      K.mode = kMode ? 'kea' : 'ranger'; lastSec = -1; lastTick = -1; lastTrack = -1; lastPhase = ''; lastSub = ''; lastStrikes = -1;
+      K.banked = -1; K.cone = ''; K.carry = '#'; K.notices = -1; K.off = -1; K.wingN = -1; K.wingS = -1; K.pull = -1;
+      for (const p of plates) { p.last = -1; p.lastS = -1; p.lockOn = false; flag(p.p, 'locked', false); }
+    }
+    if (ui.state !== 'playing' || !(kMode || game)) return;
+    const S = demo || (kMode ? kg : game);
+    const TK = kMode ? KEA_TICKER : TICKER;
 
     // timer + shift track
     const sec = Math.ceil(S.timeLeft);
     if (sec !== lastSec) { lastSec = sec; text(N.clock, fmtClock(sec)); flag(timerEl, 'late', sec <= 60); }
     // advisory ticker: rotates every 12 s of shift time; under ?shot it is keyed to the camera spot (stable per pose)
-    const tk = shotMode ? Math.abs(Math.round(G.camera.position.x * 3 + G.camera.position.z * 7)) % TICKER.length
-      : Math.floor((S.shiftLength - S.timeLeft) / 12) % TICKER.length;
-    if (tk !== lastTick) { lastTick = tk; text(N.ticker, TICKER[tk]); }
+    const tk = shotMode ? Math.abs(Math.round(G.camera.position.x * 3 + G.camera.position.z * 7)) % TK.length
+      : Math.floor((S.shiftLength - S.timeLeft) / 12) % TK.length;
+    if (tk !== lastTick) { lastTick = tk; text(N.ticker, TK[tk]); }
     const tr = Math.round((1 - S.timeLeft / (S.shiftLength || 1)) * 400);
     if (tr !== lastTrack) { lastTrack = tr; N.track.style.width = (tr / 4) + '%'; }
 
@@ -181,12 +229,19 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
       lastPhase = ph; N.banner.dataset.phase = ph; flag(N.banner, 'on', !!ph); flag(hud, 'shaking', ph === 'shake');
       text(N.bTop, ph === 'shake' ? ALERT_COPY.shakeTop : ALERT_COPY.alertTop); lastCount = -1;
     }
-    if (ph) {
+    if (ph && kMode) {
+      const cnt = Math.max(0, Math.ceil((ph === 'alert' ? 3 : 6) - S.alertT));
+      if (cnt !== lastCount) { lastCount = cnt; text(N.bCount, String(cnt)); }
+      const sub = ph === 'alert' ? KEA_ALERT.alertSub : KEA_ALERT.holdSub;
+      if (sub !== lastSub) { lastSub = sub; text(N.bSub, sub); flag(N.banner, 'bad', false); flag(N.banner, 'good', false); }
+    } else if (ph) {
       const cnt = Math.max(0, Math.ceil((ph === 'alert' ? 3 : 6) - S.alertT));
       if (cnt !== lastCount) { lastCount = cnt; text(N.bCount, String(cnt)); }
       const sub = ph === 'alert' ? ALERT_COPY.alertSub : S.compliant ? (S.coverOk ? ALERT_COPY.holdCover : ALERT_COPY.holdOk) : ALERT_COPY.holdBad;
       if (sub !== lastSub) { lastSub = sub; text(N.bSub, sub); flag(N.banner, 'bad', ph === 'shake' && !S.compliant); flag(N.banner, 'good', ph === 'shake' && S.compliant); }
     }
+
+    if (kMode) { updateKea(); return; }
 
     // strikes
     if (S.strikes !== lastStrikes) {
@@ -202,7 +257,7 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
       if (pc !== p.last) {
         p.last = pc; p.fill.style.width = pc + '%'; text(p.pct, pc + '%');
         let si = 0; while (si < VAN_STATUS.length - 1 && it <= VAN_STATUS[si][0]) si++;
-        if (si !== p.lastS) { p.lastS = si; text(p.status, VAN_STATUS[si][1]); p.p.dataset.level = VAN_STATUS[si][2]; }
+        if (si !== p.lastS) { p.lastS = si; if (!p.lockOn) text(p.status, VAN_STATUS[si][1]); p.p.dataset.level = VAN_STATUS[si][2]; }
         if (!demo && it < 0.35 && !p.warned) { p.warned = true; H.toast(TOASTS.lowVan(p.v.name)); }
       }
       const hit = G.t < p.hitUntil; if (hit !== p.hitOn) { p.hitOn = hit; flag(p.p, 'hit', hit); }
@@ -228,6 +283,49 @@ export function create(G, { input, player, quality, path, game, vans, blower }) 
       flag(cross, 'turbo', !!B.turbo && !!B.firing);
     }
   };
+  // ---- Kea mode per-frame (guarded writes only; every string is a constant or built on a value change) ----
+  function updateKea() {
+    const S = kg, P = kp();
+    // campervan register: integrity + possum lock (keagame sets van.lockedBy)
+    for (let i = 0; i < plates.length; i++) {
+      const p = plates[i], it = p.v.integrity, pc = Math.max(0, Math.round(it * 100));
+      if (pc !== p.last) {
+        p.last = pc; p.fill.style.width = pc + '%'; text(p.pct, pc + '%');
+        let si = 0; while (si < VAN_STATUS.length - 1 && it <= VAN_STATUS[si][0]) si++;
+        if (si !== p.lastS) { p.lastS = si; if (!p.lockOn) text(p.status, VAN_STATUS[si][1]); p.p.dataset.level = VAN_STATUS[si][2]; }
+      }
+      const lk = !!p.v.lockedBy;
+      if (lk !== p.lockOn) { p.lockOn = lk; flag(p.p, 'locked', lk); text(p.status, lk ? 'Occupied by a possum' : VAN_STATUS[Math.max(0, p.lastS)][1]); }
+      const hit = G.t < p.hitUntil; if (hit !== p.hitOn) { p.hitOn = hit; flag(p.p, 'hit', hit); }
+    }
+    // items held for research
+    if (S.banked !== K.banked) {
+      K.banked = S.banked; text(KN.banked, String(S.banked));
+      for (let i = 0; i < kPips.length; i++) flag(kPips[i], 'on', i < S.banked);
+      flag(KN.banked.parentNode.parentNode, 'met', S.banked >= S.quota);
+    }
+    if (S.cone !== K.cone) { K.cone = S.cone; text(KN.cone, CONE_HUD[S.cone] || ''); KN.cone.dataset.cone = S.cone; }
+    const ck = S.carryKind || '';
+    if (ck !== K.carry) { K.carry = ck; text(KN.carry, ck ? PART_NAME[ck] || 'Something' : 'Nothing (officially)'); flag(KN.carry, 'carrying', !!ck); }
+    // notices + offended
+    if (S.notices !== K.notices) {
+      K.notices = S.notices;
+      for (let i = 0; i < noticeBoxes.length; i++) flag(noticeBoxes[i], 'on', i < S.notices);
+      text(KN.noticeNote, NOTICE_NOTE[Math.min(3, S.notices)]); flag(KN.noticeNote.parentNode, 'warn', S.notices > 0);
+    }
+    const off = P ? Math.min(3, P.offended | 0) : 0;
+    if (off !== K.off) { K.off = off; for (let i = 0; i < offPips.length; i++) flag(offPips[i], 'on', i < off); text(KN.offNote, OFF_NOTE[off]); }
+    // wing capacity (stamina) meter
+    const st = P ? Math.max(0, Math.min(1, P.stamina ?? 1)) : 1, n = Math.ceil(st * SEGS - 0.001);
+    if (n !== K.wingN) {
+      K.wingN = n; for (let i = 0; i < wingSegs.length; i++) flag(wingSegs[i], 'on', i < n);
+      let wi = 0; while (wi < WING_STATE.length - 1 && st >= WING_STATE[wi][0]) wi++;
+      if (wi !== K.wingS) { K.wingS = wi; text(KN.wingState, WING_STATE[wi][1]); flag(KN.wing, 'low', wi === 0); }
+    }
+    // pull progress ring around the reticle
+    const pq = P && P.pulling > 0 ? Math.min(20, Math.round(P.pulling * 20)) : -1;
+    if (pq !== K.pull) { K.pull = pq; flag(KN.pull, 'on', pq >= 0); if (pq >= 0) KN.pull.style.setProperty('--p', PULL_P[pq]); }
+  }
   return H;
 }
 
