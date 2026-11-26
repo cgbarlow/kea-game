@@ -78,3 +78,62 @@ VERIFICATION
 DONE WHEN gates G1-G4 pass in the same build, or the critic-round budget (quick 2) is exhausted, in which case ship the best
 snapshot with its residual defect list. Never ship a blocker. Deliver dist/index.html, its size, the perf report and the
 critic's final review.
+
+---
+
+# v2: KEA MODE (branch v2-kea-mode)
+
+Enable the KEA entry in the title mode selector (hud/ui.js MODES) and make it a complete mode. RANGER (v1) must keep working
+exactly as now and pass its v1 playtest unchanged. Same world, same 7-minute shift, seen from the kea. The Department's
+notices, toasts and signs address the kea directly in the same deadpan voice; the kea ignores all of them.
+Tagline: "The kea are protected. The cone is not." Full brief: .campaign/v2-kea-mode-prompt.md.
+
+RULES (html-game-concept, binding): nothing is harmed (blown = tumble, right yourself, return offended; failure =
+"relocated"); the ranger cannot be attacked or damaged and is just doing the job (the joke is on the procedures);
+tourists are only mildly inconvenienced; no real organisations (keep "the Department").
+
+PLAYER (first person, G.mode === 'kea')
+- Eye 0.35 m on the ground. Walk/hop (WASD, hop bob), Space flaps (climb ~3.5 m/s, "Wing capacity" stamina 0..1, drains
+  while flapping, recovers grounded/perched), release glides (sink ~1.2 m/s, forward ~7 m/s, Shift dives faster).
+  Arcade: no stalls, auto-level roll, absolute ceiling y = 16, bounds WORLD.min/max x,z widened to z >= -34 (stash).
+  Auto-land when slow (< 3 m/s horizontal) and < 0.5 m above a top surface (van roofs/cabs/mirrors, signs, gate arm,
+  tables, lamp heads, shelter roof, colliders' tops, terrain). Mouse look, gamepad, pointer lock as v1.
+- View model (hero object, replaces the blower in kea mode): own beak at the bottom of frame (olive upper mandible, long
+  curved hook, grey cere, lower mandible opens on squawk / grips on pull) + wing leading edges sweeping in on each flap
+  with orange underwing flashes. Reuse v1 kea textures/materials (src/modules/kea/tex.js, shader.js) so it matches.
+- PULL (LMB hold) on a part within 0.9 m of the beak, in view: wiper, seal, mirror, roof-pod strap. Progress 0..1 over
+  ~2.5 s (faster when offended); the van takes v1 damage while pulling (van.damage). Done → part detaches, hangs from
+  the beak (CARRY). Carrying the cone halves climb rate and stamina.
+- CARRY → bank at the STASH (LAYOUT.stash: rock ledge on the north scree, about (-4, terrain, -31), pile grows per part).
+- SQUAWK (RMB): emits 'kea:squawk' at the player position; the ranger turns toward it for 3 s. Cooldown 6 s.
+
+OPPOSITION
+- Ranger: AI human (procedural, Department hi-vis jacket + beanie, readable at distance, no face close-ups) carrying the
+  v1 blower model third-person. Patrol vans → investigate pull noise / squawks → blow the kea (same force-cone + tumble
+  physics as v1, applied to the player). Prefers a possum at a van door over the kea. Overheats like v1 (forced cool-down).
+  In an aftershock: drops, covers and holds (crouched, not blowing) for the whole shake. Exposes a duck-typed blower
+  query (firing, origin, dir, range, strengthAt(p), forceAt(p,out)) so v1 possums and background kea react to it.
+- Blown off: tumble 1.2 s, then OFFENDED +1 (cap 3): +15 % speed and +25 % pull rate per level.
+- Possums: v1 possums unchanged; a possum inside a van locks that van's parts until the ranger traps it.
+- Background flock: 2-3 v1 AI kea, non-player.
+- Aftershocks: the same five; HUD still says drop, cover and hold ("This applies to kea. It does not apply to kea.").
+
+OBJECTIVES / END
+- Bank QUOTA = 9 rubber parts + the Department's road cone (LAYOUT.cone, by the ROAD CLOSED gate).
+- Win: quota and cone banked before the highway reopens: "Road open. The kea have kept the cone."
+- Lose: timer runs out ("Road open. The kea have not kept the cone. Yet.") or 3 notices (blown off mid-pull while a part
+  is still attached): "You have been relocated to a quieter car park. You will find your way back."
+- End stats (Department voice): parts recovered, cone status, notices received, times offended.
+- HUD: "Items held for research: n of 9", cone status, "Wing capacity" meter, offended level, notices, reopening estimate,
+  toast feed. Title note for KEA: "Risk assessment complete. Risk confirmed."
+
+KEA-MODE HERO POSES (KPOSES in contracts.js; refine at integration): K1 on van B cab mid-pull, ranger turning behind;
+K2 gliding west down the car park into the sun, beak in frame; K3 perched on the ROAD CLOSED gate arm eyeing the cone;
+K4 carrying the cone over the vans; K5 the stash ledge, pile + car park below; K6 the ranger crouched in an aftershock as a kea lands.
+
+HARNESS: ?mode=kea (with ?autostart=1 / ?shot) starts kea mode directly; #bench works in both modes (kea path 0.3-14 m).
+
+GATES (both modes, one build): G1 both boot, 6 ranger + 6 kea poses capture with 0 errors. G2 blind critic on the 6 kea
+poses, references/quality-bar.json, 2 rounds. G3 playtest bot reaches win and lose in both modes, exercises every kea
+verb (hop, flap, glide, land, pull, carry, squawk, blown + offended), 0 console errors over 5 min; ranger v1 script passes
+unchanged. G4 auto quality holds 60 fps at 1920x1080 on the base M4 in both modes; never ship a G4 failure. Size < 2 MB.

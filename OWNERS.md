@@ -98,3 +98,16 @@ v2). Data-driven modes list, sets G.mode = 'ranger'; game starts only from Range
 `create(G, {blower}) → { mixer, music, play, setVolume, unlock, update }`. Two-stroke blower (idle/rev/turbo layers
 tracking power), airflow whoosh, kea "keee-aa" calls (synth), possum hiss/chatter, trap-box thunk, aftershock rumble +
 phone-alert tone, alpine wind ambience, sparse music. Peak <= -1 dBFS, no silent stems (audio/meter.js).
+
+---
+
+# v2 (Kea mode) module plan
+
+Lead/integrator still owns main.js, contracts.js (adds LAYOUT.cone, LAYOUT.stash, KPOSES, KPATH), _stub.js, SPEC.md.
+v1 modules are frozen except where listed. Mode is chosen after boot: everything boots once, modes enable/disable.
+
+| # | Module | Files | Contract |
+|---|---|---|---|
+| 10 | keaplayer | `src/modules/keaplayer/*` | `create(G, { input, colliders, terrain, vans }) → { overlay:{scene,camera}, position, velocity, yaw, pitch, grounded, perched, flying, stamina, offended, carrying (part|null), pulling (0..1), tumble (s), enabled, teleport(p,yaw), knock(force), update }`. Events `kea:pull:start/done`, `kea:squawk`, `kea:land`, `kea:tumble`. Reads the ranger via `G.mods.ranger.forceAt`. Parts come from `vans` (expose part anchors via a small vans API if missing: report it). |
+| 11 | ranger | `src/modules/ranger/*` | `create(G, { vans, colliders, possums }) → { group, position, state:'patrol'|'investigate'|'blow'|'cool'|'dch', firing, origin, dir, range, strengthAt(p), forceAt(p,out), enabled, reset(), update, materials }`. Reuses `blower/model.js` for the blower it carries. Listens `kea:squawk`, `kea:pull:start`, `game:alert`. |
+| 12 | keagame | `src/modules/keagame/*` + kea panels in `hud` | `create(G, { player, ranger, vans, possums, kea, terrain }) → { state:'shift'|'won'|'lost', timeLeft, banked, quota:9, cone:'gate'|'carried'|'banked', notices, stats, restart(), update }`. Owns the stash + cone props, aftershock schedule (reuse game RULES), end lines, kea-mode toasts. |
