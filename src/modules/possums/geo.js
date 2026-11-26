@@ -147,7 +147,7 @@ export function buildPossumGeo(look) {
     }
     const mot = 0.86 + 0.28 * vnoise3(x * 38, y * 38, z * 22, sd);
     // baked AO: belly between the legs, under the chin, the groin
-    const ao = mix(0.5, 1, sstep(-0.95, 0.1, up)) * (z < -0.24 ? 1 : mix(0.82, 1, sstep(-0.6, -0.1, up) + sstep(0.06, 0.16, y)));
+    const ao = mix(0.34, 1, sstep(-0.95, 0.2, up)) * (z < -0.24 ? 1 : mix(0.72, 1, sstep(-0.6, -0.1, up) + sstep(0.06, 0.16, y)));
     col = mul3(col, mot * ao);
     const [b0, b1, w] = spineW(z);
     const furLen = (z < -0.228 ? 0.2 : z < -0.15 ? 0.6 : 1) * (cyy < -0.6 ? 0.2 : cyy < -0.2 ? 0.75 : 1) * (s < 0.04 ? 0.3 : 1);
@@ -157,7 +157,7 @@ export function buildPossumGeo(look) {
   // ears (base fur material): flattened ellipsoids, outward + back tilt, pale pink inner face
   for (const sx of [-1, 1]) {
     const cx = sx * 0.038, cyE = 0.244, cz = -0.164, ER = 9, ERING = 7;
-    const ax = 0.019, ay = 0.048, az = 0.01, tilt = sx * 0.2, back = 0.1;
+    const ax = 0.021, ay = 0.054, az = 0.01, tilt = sx * 0.2, back = 0.1;
     const ct = Math.cos(tilt), st = Math.sin(tilt), cb = Math.cos(back), sb = Math.sin(back);
     ringGrid(limbs, ERING, ER, (r, j) => {
       const v = (r / (ERING - 1)) * Math.PI, u = (j / ER) * Math.PI * 2;

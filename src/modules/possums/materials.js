@@ -39,6 +39,20 @@ const RUFFLE = /*glsl*/`
     float k = uRuffle.w * aFur.x * aFur.x * min(aFur.y, 1.0); // tail fur is longer but no floppier
     transformed += (uRuffle.xyz * (0.022 + 0.012 * fn) + objectNormal * (0.012 + 0.008 * fn)) * k;
   }`;
+// lighting hook (after normals, before the BRDF): fur-tip fresnel brightens the grizzled guard hairs on the silhouette
+// (multiplicative, so the black tail stays a dark shape), and sheen scales with albedo so the black tail and dark
+// muzzle do not glow grey under the velvet term. `tipK` = strength (shells carry the tips, base gets a hint).
+const furLight = (tipK) => /*glsl*/`
+  {
+    float fr = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
+    fr = fr * fr * fr;
+    float lum = dot(diffuseColor.rgb, vec3(0.3333));
+    diffuseColor.rgb *= 1.0 + ${tipK.toFixed(2)} * fr * smoothstep(0.004, 0.05, lum);
+  }
+  #include <lights_physical_fragment>
+  #ifdef USE_SHEEN
+    material.sheenColor *= clamp(dot(diffuseColor.rgb, vec3(0.3333)) * 6.0, 0.12, 1.0);
+  #endif`;
 function furVertex(shader, mat) {
   shader.uniforms.uRuffle = mat.userData.ruffle;
   shader.uniforms.uRufPh = mat.userData.rufPh;
@@ -62,7 +76,7 @@ export function createPossumMaterials() {
   {
     float sn = furStrand(vFurP);
     diffuseColor.rgb *= 0.66 + 0.55 * sn;
-  }`);
+  }`).replace('#include <lights_physical_fragment>', furLight(0.6));
   });
 
   // shells: each texel of a shell is a strand or nothing; coverage drops with the layer, tips go lighter (grizzled
@@ -85,8 +99,8 @@ export function createPossumMaterials() {
     diffuseColor.a = cov;
     float tip = smoothstep(0.55, 0.9, sn) * lay;
     diffuseColor.rgb *= mix(0.72, 1.0, lay) * (0.86 + 0.2 * sn);
-    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.35 + vec3(0.012), tip * 0.6);
-  }`);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.45, tip * 0.6);
+  }`).replace('#include <lights_physical_fragment>', furLight(0.9));
     });
     shells.push(shell);
     return shell;
@@ -102,11 +116,12 @@ export function createPossumMaterials() {
   const N = 64, d = new Uint8Array(N * N * 4);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const u = (x + 0.5) / N * 2 - 1, v = (y + 0.5) / N * 2 - 1, r = Math.sqrt(u * u + v * v);
-    const a = Math.max(0, 1 - r); const g = Math.round(255 * Math.pow(a, 1.6));
+    // dense plateau under the belly, soft penumbra out to the rim (alpha ~0.55 across the body after opacity)
+    const e = Math.min(1, Math.max(0, (r - 0.22) / 0.78)), g = Math.round(255 * Math.pow(1 - e * e * (3 - 2 * e), 1.3));
     const o = (y * N + x) * 4; d[o] = d[o + 1] = d[o + 2] = g; d[o + 3] = 255;
   }
   const tex = new DataTexture(d, N, N, RGBAFormat); tex.magFilter = LinearFilter; tex.minFilter = LinearFilter; tex.needsUpdate = true;
-  const blob = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.72, alphaMap: tex, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const blob = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.66, alphaMap: tex, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   blob.name = 'possumContact'; blob.userData.noWeather = true;
   // down-sun streak: same radial falloff squeezed into a tapering strip (dense at the feet, fading at the tip)
   const S = 32, sd = new Uint8Array(S * S * 4);

@@ -3,11 +3,14 @@
 //   const r = makeRig(geo, mats, shellMat); r.group.position…; pose(r, P) with P = {
 //     ph (gait phase, rad), gait 0..1 (stride amplitude), slide 0..1 (splayed belly-slide), rear 0..1 (up on the
 //     hind legs at a door), crouch 0..1 (squeeze into a trap), shake 0..1 (post-slide shake-off), spin (rad/s, tail
-//     streams), headYaw, headPitch (rad), t (s) }
+//     streams), headYaw, headPitch (rad), t (s), alert 0..1 (hunched, shoulders + head up, ears pricked) }
 import { Group, Bone, Skeleton, SkinnedMesh } from 'three';
 import { BONES, B } from './geo.js';
 
-const TAIL_REST = [0.3, 0.24, -0.12, -0.42];
+// tail carried up off the asphalt in a sickle (a brushtail's dark silhouette cue), dropped to the ground as a prop
+// when it rears at a door or flattens in a slide
+const TAIL_UP = [-0.62, -0.12, 0.34, 0.52];
+const TAIL_DOWN = [0.3, 0.24, -0.12, -0.42];
 
 export function makeRig(geo, mats, shellMat = mats.shell) {
   const group = new Group();
@@ -62,8 +65,21 @@ export function pose(r, P) {
   // ---- tail: resting droop + travelling sway wave
   for (let k = 0; k < 4; k++) {
     const tb = b[B.tail0 + k];
-    tb.rotation.x = TAIL_REST[k] * (1 - 0.7 * sl);
+    const dn = Math.max(re, sl);
+    tb.rotation.x = TAIL_UP[k] + (TAIL_DOWN[k] * (1 - 0.7 * sl) - TAIL_UP[k]) * dn;
     tb.rotation.y = (0.16 + 0.05 * k) * A * Math.sin(P.ph - 0.9 - k * 0.6) + P.spin * 0.08 * (k + 1) * sl;
+  }
+
+  // ---- alert: hunched over the hind legs, shoulders lifted, head up and turned to the threat, tail higher
+  const al = (P.alert || 0) * (1 - Math.max(sl, re));
+  if (al > 0) {
+    b[B.pelvis].rotation.x += 0.16 * al;
+    b[B.chest].rotation.x -= 0.06 * al;
+    b[B.pelvis].position.y -= 0.008 * al;
+    b[B.FL].position.y -= 0.016 * al; b[B.FR].position.y -= 0.016 * al; // front paws stay planted under the lifted chest
+    b[B.FL].rotation.x -= 0.1 * al; b[B.FR].rotation.x -= 0.1 * al;
+    b[B.head].rotation.x += 0.22 * al;
+    b[B.tail0].rotation.x -= 0.12 * al;
   }
 
   // ---- belly slide (blown across the wet asphalt): legs splayed, body flat on the ground, head up

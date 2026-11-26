@@ -18,7 +18,7 @@ const MAX = 8, TRAP_R = 0.6, BLOW_MIN = 0.08, PUSH_K = 0.5, RAID_DPS = 0.012;
 // showcase: the trap line at T-015 (LAYOUT.traps[2]); a possum mid-tumble in the airflow, sliding toward the mouth
 const SHOW_CAM = [5.64, 0.84, 12.96], SHOW_TARGET = [5.1, 0.1, 13.98], SHOW_TRAP = 2;
 const _a = new Vector3(), _f = new Vector3(), _q = new Vector3(), _m = new Matrix4(), _qq = new Quaternion(), _e = new Euler(), _s = new Vector3();
-const P = { ph: 0, gait: 0, slide: 0, rear: 0, crouch: 0, shake: 0, spin: 0, headYaw: 0, headPitch: 0, t: 0 };
+const P = { alert: 0, ph: 0, gait: 0, slide: 0, rear: 0, crouch: 0, shake: 0, spin: 0, headYaw: 0, headPitch: 0, t: 0 };
 const SPRAY = { count: 2, size: 0.07, grow: 3.2, life: 0.55, color: [0.62, 0.66, 0.70], opacity: 0.32, spread: 0.6, vel: new Vector3(), rise: 0.05 };
 const DUST = { count: 2, size: 0.09, grow: 3.0, life: 0.9, color: [0.36, 0.31, 0.25], opacity: 0.3, spread: 0.4, vel: new Vector3(), rise: 0.1 };
 const THUMP = { count: 5, size: 0.12, grow: 2.6, life: 1.1, color: [0.44, 0.40, 0.34], opacity: 0.35, spread: 0.5, vel: new Vector3(0, 0.25, 0), rise: 0.2 };
@@ -44,16 +44,16 @@ export function create(G, { vans, blower, traps = [] } = {}) {
     const shellMat = mats.shellFor();
     const rig = makeRig(geo, mats, shellMat);
     const mesh = rig.group; mesh.visible = false; mesh.name = 'possum' + i; mesh.rotation.order = 'YXZ'; // yaw, then pitch/roll in body frame
-    const sc = c[4] * (0.97 + ((i * 37) % 7) * 0.01);
+    const sc = 1.15 * c[4] * (0.97 + ((i * 37) % 7) * 0.01); // ~0.55 m nose-to-rump + tail: a big NZ brushtail
     mesh.scale.setScalar(sc);
     root.add(mesh);
     list.push({ i, state: 'idle', pos: new Vector3(), vel: new Vector3(), van: null, mesh, rig, t: 0, scale: sc,
       yaw: 0, spin: 0, ph: i * 1.3, gait: 0, slide: 0, rear: 0, crouch: 0, shake: 0, headYaw: 0, headPitch: 0,
       speed: 1.15 + ((i * 53) % 9) * 0.04, wander: i * 2.1, spray: 0, trap: -1, enterT: 0, stuck: 0,
-      roll: 0, pitch: 0, lift: 0, ruffle: 0, windX: 0, windZ: 1, ruf: shellMat.userData });
+      alert: 0, roll: 0, pitch: 0, lift: 0, ruffle: 0, windX: 0, windZ: 1, ruf: shellMat.userData });
   }
   // contact shadows: one instanced draw for all eight
-  const blobGeo = new PlaneGeometry(0.34, 0.62); blobGeo.rotateX(-Math.PI / 2);
+  const blobGeo = new PlaneGeometry(0.44, 0.8); blobGeo.rotateX(-Math.PI / 2);
   const blobs = new InstancedMesh(blobGeo, mats.blob, MAX); blobs.name = 'possumContact';
   blobs.frustumCulled = false; blobs.renderOrder = 1;
   _m.makeScale(0, 0, 0); for (let i = 0; i < MAX; i++) blobs.setMatrixAt(i, _m);
@@ -148,7 +148,7 @@ export function create(G, { vans, blower, traps = [] } = {}) {
     const m = p.mesh;
     m.position.copy(p.pos); m.position.y += p.lift;
     m.rotation.set(p.pitch, p.yaw, p.roll);
-    P.ph = p.ph; P.gait = p.gait; P.slide = p.slide; P.rear = p.rear; P.crouch = p.crouch; P.shake = p.shake;
+    P.alert = p.alert; P.ph = p.ph; P.gait = p.gait; P.slide = p.slide; P.rear = p.rear; P.crouch = p.crouch; P.shake = p.shake;
     P.spin = p.spin; P.headYaw = p.headYaw; P.headPitch = p.headPitch; P.t = G.t + p.i * 0.37;
     if (p.slide > 0.01 && !API.frozen) m.rotation.z += Math.sin(P.t * 7) * 0.06 * p.slide; // body wobble on the slide
     // fur ruffle: airflow direction into possum-local space (rotation about Y by yaw), a little lift off the skin
@@ -158,7 +158,9 @@ export function create(G, { vans, blower, traps = [] } = {}) {
     // blob: smaller + darker when flat on the ground, stretched when reared up
     const k = p.scale * (1 + 0.15 * p.slide - 0.25 * p.rear) * (1 - Math.min(0.5, p.lift * 3));
     _e.set(0, p.yaw, 0); _qq.setFromEuler(_e);
-    _q.set(p.pos.x, p.pos.y + 0.006, p.pos.z);
+    // centred under the belly, not the hind-foot root (body spans local z -0.27..0.17)
+    const fo = 0.06 * p.scale * (1 - p.rear);
+    _q.set(p.pos.x - Math.sin(p.yaw) * fo, p.pos.y + 0.006, p.pos.z - Math.cos(p.yaw) * fo);
     _s.set(k * (1 + 0.3 * p.slide), 1, k * (1 - 0.35 * p.rear));
     _m.compose(_q, _qq, _s); blobs.setMatrixAt(p.i, _m); blobs.instanceMatrix.needsUpdate = true;
     // streak: local -Z of the plane points down-sun; length = height / tan(sun elevation), capped
@@ -276,6 +278,7 @@ export function create(G, { vans, blower, traps = [] } = {}) {
       let hy = 0;
       if (cd < 7 && p.state === 'walk') hy = Math.max(-0.9, Math.min(0.9, wrapA(Math.atan2(-cx, -cz) - p.yaw)));
       p.headYaw = smooth(p.headYaw, hy, 3, dt);
+      p.alert = smooth(p.alert, p.state === 'walk' ? (cd < 7 ? 1 : 0.35) : 0, 3, dt); // hunched + head up, more so near the ranger
       p.headPitch = smooth(p.headPitch, p.state === 'walk' ? -0.08 : 0, 3, dt);
       apply(p, dt);
     }
@@ -304,10 +307,10 @@ export function create(G, { vans, blower, traps = [] } = {}) {
       const p = list[0], cam = G.POSES?.[4] || SHOW_CAM;
       p.van = v; p.state = 'walk';
       p.pos.set(0.3, 0, 0.3); p.yaw = -Math.PI / 2 - 0.15;
-      p.ph = 0.9; p.gait = 1;
+      p.ph = 0.9; p.gait = 0.25; p.alert = 1; // caught mid-step: hunched, head up, ears pricked at the ranger
       const cx = cam[0] - p.pos.x, cz = cam[2] - p.pos.z;
       p.headYaw = Math.max(-0.9, Math.min(0.9, wrapA(Math.atan2(-cx, -cz) - p.yaw)));
-      p.headPitch = 0.12;
+      p.headPitch = 0.05;
       show(p, true); apply(p, 0);
     }
     // ?possums=lineup (inspection): every coat + every animation state around van B's door and trap T-015
@@ -318,7 +321,7 @@ export function create(G, { vans, blower, traps = [] } = {}) {
     const set = (i, x, z, yaw, o) => {
       const p = list[i]; p.van = v; p.state = o.state || 'walk'; p.pos.set(x, 0, z); p.yaw = yaw;
       p.ph = o.ph ?? 0; p.gait = o.gait ?? 0; p.slide = o.slide ?? 0; p.rear = o.rear ?? 0; p.crouch = o.crouch ?? 0;
-      p.shake = o.shake ?? 0; p.spin = o.spin ?? 0; p.headYaw = o.hy ?? 0; p.headPitch = o.hp ?? 0;
+      p.shake = o.shake ?? 0; p.alert = o.alert ?? (p.state === 'walk' ? 1 : 0); p.spin = o.spin ?? 0; p.headYaw = o.hy ?? 0; p.headPitch = o.hp ?? 0;
       show(p, true); apply(p, 0);
     };
     const d = v.doorPos;
