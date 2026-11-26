@@ -20,13 +20,13 @@ import { buildAtlas } from './livery.js';
 import { vanUniforms, patchVan, glassMaterial, lensMaterial, depthMaterial, writeFx } from './fx.js';
 
 const CFG = {
-  A: { tint: 0xd4d4d0, rim: 0xb7b9bb, seat: 0x3a3c40, curtain: 0x6a5a3a, roof: 'solar', props: 'chairs', grime: 0.3, foot: 0.42,
+  A: { tint: 0xd4d4d0, rim: 0xb7b9bb, seat: 0x3a3c40, curtain: 0x6a5a3a, roof: 'solar', gear: 'pod', props: 'chairs', grime: 0.5, foot: 0.6,
     people: [{ x: 0.46, driver: true, pose: 'wheel', skin: 0xe0b89a, top: 0xa8382c, hair: 0xd2b878, long: true },
       { x: -0.46, pose: 'map', skin: 0xd8ae8c, top: 0x2f4a6a, hat: 'beanie', hatC: 0x56663a, hatC2: 0xd8571c, glasses: true, collar: 0xd8d0c0 }] },
-  B: { tint: 0xd4d4d0, rim: 0x9a9c9e, seat: 0x2c2e32, curtain: 0x2f5d7c, roof: 'aircon', props: 'washing', grime: 0.42, foot: 0.5,
+  B: { tint: 0xd4d4d0, rim: 0x9a9c9e, seat: 0x2c2e32, curtain: 0x2f5d7c, roof: 'aircon', gear: 'bags', props: 'washing', grime: 0.5, foot: 0.62,
     people: [{ x: 0.46, driver: true, pose: 'wheel', skin: 0x4a3022, top: 0x3a5a3a, hair: 0x15110e, glasses: true },
       { x: -0.46, pose: 'phone', skin: 0x5a3a28, top: 0xd9a030, hat: 'wrap', hatC: 0x2f5d7c }] },
-  C: { tint: 0xd4d4d0, rim: 0xc4c6c8, seat: 0x403a34, curtain: 0x7a2f2a, roof: 'vents', props: 'gas', grime: 0.36, foot: 0.46,
+  C: { tint: 0xd4d4d0, rim: 0xc4c6c8, seat: 0x403a34, curtain: 0x7a2f2a, roof: 'vents', gear: 'kayak', props: 'gas', grime: 0.46, foot: 0.6,
     people: [{ x: 0.46, driver: true, pose: 'camera', skin: 0xd8b08a, top: 0x5a5c62, hat: 'bucket', hatC: 0x9c8548 }] },
 };
 
@@ -50,7 +50,7 @@ export function create(G, { mats, colliders = [] }) {
     const props = buildProps(k, T, C);
     k.bakeAO({ ground: 0, samples: 10, radius: 0.4, strength: 0.7 });
     k.grime({ base: 0, foot: C.foot, streak: C.grime, down: 0.3, dirt: [0.62, 0.55, 0.46], seed: d.id.charCodeAt(0) }, ['paint', 'dark', 'metal']);
-    const paint = makeMaterial('painted_metal', { tint: C.tint }); paint.vertexColors = true;
+    const paint = makeMaterial('painted_metal', { tint: C.tint, rough: 0.62 }); paint.vertexColors = true;
     const dark = makeMaterial('rubber', { tint: 0xffffff }); dark.vertexColors = true;
     const vm = { paint: patchVan(paint, U), dark: patchVan(dark, U), metal, cab: patchVan(cab.clone(), U), glass: glassMaterial(U), lens: lensMaterial(U), default: paint };
     const g = k.build(vm);
@@ -165,4 +165,10 @@ function buildDecals(atlas, id, U) {
   return m;
 }
 
-export function showcase() { return { cam: [6, 1.7, -6], target: [0, 1.5, 4] }; }
+// hero framing: front three-quarter from the kerb, the three vans staggered in depth (C near, B mid, A far).
+// The ranger's blower is holstered for this shot so it never covers the vans (showcase only, not gameplay).
+export function showcase(G) {
+  const b = G?.mods?.blower;
+  if (b) { b.enabled = false; b.forceFire = false; if (b.model) b.model.visible = false; }
+  return { cam: [-15.5, 1.7, -5.5], target: [1.5, 1.35, 5.5] };
+}

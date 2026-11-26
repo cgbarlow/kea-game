@@ -42,13 +42,20 @@ function brandCanvas() {
   return cv;
 }
 
-function shadowCanvas() { // soft contact shadow under the van (overcast sky occlusion)
-  const W = 128, H = 256, cv = mk(W, H), g = cv.getContext('2d'), img = g.createImageData(W, H);
+function shadowCanvas() { // contact shadow + ambient occlusion under the van: soft skirt, dark core, tyre contact blobs
+  const W = 128, H = 320, cv = mk(W, H), g = cv.getContext('2d'), img = g.createImageData(W, H);
+  // plane is (bodyW + 0.7) x (len + 0.8) m, canvas top = nose. Wheel centres in canvas fractions.
+  const len = 6.45 + 0.8, wid = 2.22 + 0.7, wheels = [];
+  for (const f of [2.3, -1.4]) for (const x of [-0.87, 0.87]) wheels.push([0.5 + x / wid, (len / 2 - 0.02 - f) / len]);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const u = Math.abs((x + 0.5) / W * 2 - 1), v = Math.abs((y + 0.5) / H * 2 - 1);
-    const dx = Math.max(0, u - 0.62) / 0.38, dy = Math.max(0, v - 0.8) / 0.2, d = Math.min(1, Math.hypot(dx, dy));
-    const a = Math.pow(1 - d, 1.6) * 0.78, i = (y * W + x) * 4;
-    img.data[i] = 8; img.data[i + 1] = 8; img.data[i + 2] = 10; img.data[i + 3] = a * 255;
+    const fu = (x + 0.5) / W, fv = (y + 0.5) / H, u = Math.abs(fu * 2 - 1), v = Math.abs(fv * 2 - 1);
+    const dx = Math.max(0, u - 0.5) / 0.5, dy = Math.max(0, v - 0.76) / 0.24, d = Math.min(1, Math.hypot(dx, dy));
+    let a = Math.pow(1 - d, 1.4) * 0.9;
+    const core = Math.max(0, 1 - Math.hypot(Math.max(0, u - 0.3) / 0.3, Math.max(0, v - 0.6) / 0.25)); a = Math.max(a, core * 0.96);
+    if (d >= 1) a = 0;
+    for (const [wu, wv] of wheels) { const e = Math.hypot((fu - wu) * wid / 0.2, (fv - wv) * len / 0.42); if (e < 1) a = Math.max(a, 0.97 * (1 - e * e) + a * e * e); }
+    const i = (y * W + x) * 4;
+    img.data[i] = 6; img.data[i + 1] = 6; img.data[i + 2] = 8; img.data[i + 3] = Math.min(1, a) * 255;
   }
   g.putImageData(img, 0, 0);
   return cv;

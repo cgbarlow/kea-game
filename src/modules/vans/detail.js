@@ -77,6 +77,22 @@ export function buildRoof(k, T, cfg) {
   k.box(0.42, 0.1, 0.42, 'dark', { at: [0.45, top + 0.05, -0.9], r: 0.03, color: dark });                    // vent
   k.box(0.46, 0.03, 0.46, 'dark', { at: [0.45, top + 0.11, -0.9], r: 0.01, color: 0x202020 });
   k.cyl(0.05, 0.12, 'dark', { at: [-0.7, top + 0.06, 2.2], seg: 14, color: dark });                         // fridge flue
+  // roof rails on short feet (every van), and per-van roof gear for silhouette
+  for (const s of [-1, 1]) {
+    k.tube([new Vector3(s * 0.88, top + 0.1, -1.5), new Vector3(s * 0.88, top + 0.1, 3.0)], 0.016, 'metal', { radial: 8, color: 0xb0b2b4 });
+    for (const z of [-1.5, 0.3, 2.0, 3.0]) k.box(0.05, 0.1, 0.07, 'dark', { at: [s * 0.88, top + 0.05, z], r: 0.015, color: dark });
+  }
+  for (const z of [-1.2, -0.3, 1.2]) k.box(1.82, 0.03, 0.05, 'metal', { at: [0, top + 0.125, z], r: 0.01, color: 0x3a3c3e }); // cross bars
+  if (cfg.gear === 'pod') {                                                                                       // cargo pod, strapped
+    k.box(0.9, 0.36, 1.5, 'paint', { at: [-0.25, top + 0.33, -0.75], r: 0.16, color: 0x2a2c2e, seg: 3 });
+    for (const z of [-1.2, -0.3]) k.box(0.94, 0.012, 0.04, 'dark', { at: [-0.25, top + 0.515, z], r: 0.004, color: 0xd8571c });
+  } else if (cfg.gear === 'kayak') {                                                                              // a kayak, optimistic
+    k.add(lathe([[0, -1.6], [0.12, -1.2], [0.2, -0.4], [0.21, 0.3], [0.16, 1.1], [0.0, 1.6]], { seg: 14 }), 'paint', { at: [0.25, top + 0.36, 0.4], rot: [Math.PI / 2, 0, 0], color: 0xd8571c });
+    for (const z of [-0.4, 1.2]) k.box(0.36, 0.012, 0.04, 'dark', { at: [0.25, top + 0.575, z], r: 0.004, color: 0x141414 });
+  } else if (cfg.gear === 'bags') {                                                                               // duffels in a net
+    k.box(0.5, 0.26, 0.8, 'cab', { at: [-0.3, top + 0.28, -0.4], r: 0.11, color: 0x3a5a3a, seg: 3 });
+    k.box(0.44, 0.22, 0.6, 'cab', { at: [0.3, top + 0.26, -0.25], r: 0.1, color: 0x7a2f2a, seg: 3 });
+  }
   if (cfg.roof === 'solar') {
     k.box(1.5, 0.035, 0.72, 'metal', { at: [0, top + 0.06, 2.3], r: 0.01, color: 0x9a9c9e });
     k.box(1.46, 0.02, 0.68, 'glass', { at: [0, top + 0.08, 2.3], r: 0.004, color: 0x40506a });

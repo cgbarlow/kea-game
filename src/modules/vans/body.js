@@ -168,6 +168,31 @@ export function buildBody(k, T, cfg) {
   }
   k.cyl(0.05, 0.03, 'dark', { at: [-(hw + 0.012), 0.9, 1.5], rot: [0, 0, Math.PI / 2], seg: 16, color: 0x2c4f7a });  // fresh water filler
   k.cyl(0.035, 0.03, 'dark', { at: [hw + 0.012, 1.05, -1.32], rot: [0, 0, Math.PI / 2], seg: 16, color: 0x202020 });   // fuel cap
+  // GRP panel joins: an aluminium belt moulding above the windows, vertical join strips and a sill rubbing strip.
+  // They break the big white sides into the panels a real coachbuilt body is made of (and catch the low sun).
+  for (const s of [-1, 1]) {
+    k.box(0.016, 0.035, D.bodyFront - D.rear - 0.12, 'metal', { at: [s * (hw + 0.008), 2.29, -(D.rear + D.bodyFront) / 2], r: 0.008, color: alu });
+    k.box(0.012, 0.012, D.bodyFront - D.rear - 0.1, 'dark', { at: [s * (hw + 0.006), 2.255, -(D.rear + D.bodyFront) / 2], r: 0.004, color: 0x2a2a28 });
+    for (const f of [-1.75, 1.08]) {
+      k.box(0.012, 1.6, 0.03, 'metal', { at: [s * (hw + 0.006), 1.47, -f], r: 0.005, color: 0xb4b6b4 });
+      k.box(0.008, 1.6, 0.006, 'dark', { at: [s * (hw + 0.012), 1.47, -f], color: 0x2c2c2a });
+    }
+    k.box(0.024, 0.05, D.bodyFront - D.rear - 0.2, 'dark', { at: [s * (hw + 0.012), 0.76, -(D.rear + D.bodyFront) / 2], r: 0.012, color: 0x2e2f30 });
+  }
+  // cab rain gutters along the roof line + bonnet shut line
+  for (const s of [-1, 1]) k.box(0.03, 0.025, D.ws1[0] - D.cabBack - 0.1, 'dark', { at: [s * (cw + 0.01), D.ws1[1] - 0.01, -(D.ws1[0] + D.cabBack) / 2], r: 0.008, color: black });
+  k.box(D.cabW - 0.12, 0.006, 0.006, 'dark', { at: [0, 1.06, -3.12], color: black });
+  // rear access ladder (kerb side), a spare wheel cover and a hitch
+  const lx = hw - 0.42;
+  for (const dx of [-0.14, 0.14]) {
+    k.box(0.03, 1.36, 0.03, 'metal', { at: [lx + dx, 2.3, -D.rear - 0.1], r: 0.01, color: 0xa8aaac });
+    for (const y of [1.72, 2.75]) k.box(0.03, 0.03, 0.1, 'metal', { at: [lx + dx, y, -D.rear - 0.05], r: 0.008, color: 0x8e9092 });
+  }
+  for (let i = 0; i < 5; i++) k.cyl(0.012, 0.28, 'metal', { at: [lx, 1.72 + i * 0.26, -D.rear - 0.1], rot: [0, 0, Math.PI / 2], seg: 8, color: 0xb8babc });
+  k.tube([new Vector3(lx - 0.14, 2.98, -D.rear - 0.1), new Vector3(lx - 0.14, 3.08, -D.rear + 0.02), new Vector3(lx - 0.14, 3.0, -D.rear + 0.18)], 0.015, 'metal', { radial: 6, curve: true, samples: 6, color: 0xa8aaac });
+  k.tube([new Vector3(lx + 0.14, 2.98, -D.rear - 0.1), new Vector3(lx + 0.14, 3.08, -D.rear + 0.02), new Vector3(lx + 0.14, 3.0, -D.rear + 0.18)], 0.015, 'metal', { radial: 6, curve: true, samples: 6, color: 0xa8aaac });
+  k.box(0.12, 0.08, 0.3, 'dark', { at: [0, 0.38, -D.rear - 0.16], r: 0.02, color: 0x1e1f20 });
+  k.cyl(0.04, 0.08, 'metal', { at: [0, 0.46, -D.rear - 0.3], seg: 12, color: 0x8a8c8e });
   // awning cassette on the door side, with end caps and brackets
   const aw = roundPoly([[-0.06, -0.06, 0.03], [0.05, -0.05, 0.025], [0.06, 0.07, 0.04], [-0.04, 0.07, 0.02]], 4);
   k.add(extrudeBevel(aw, { depth: 3.7, bevel: 0.006 }), 'metal', { at: [-(hw + 0.07), 2.74, 1.05], color: 0x9fa3a6 });
