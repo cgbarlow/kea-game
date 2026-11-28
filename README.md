@@ -106,6 +106,13 @@ on the base M4, taken while the machine was under other load, so treat them as p
 URL options for testing: `?q=low|med|high` fixes the tier, `?dynres=0` turns off automatic resolution, `?fps=1` starts
 with the FPS readout on, `?mode=kea&autostart=1` starts straight into Kea mode.
 
+### Analytics
+
+The live site (kea.chrisbarlow.nz only) loads Google Analytics 4 at runtime: page views, plus a `shift_start` event
+(`mode`) and a `shift_end` event (`mode`, `result`, `reason`, `duration_s`). It is skipped on any other host and for
+automated browsers, so local builds and the capture, bench and playtest tools send nothing. The snippet sits in
+`template.html` just before `</head>`.
+
 ---
 
 ## Building from source

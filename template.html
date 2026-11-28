@@ -21,6 +21,30 @@
 <meta name="twitter:image" content="https://kea.chrisbarlow.nz/docs/social.jpg">
 <link rel="icon" href="data:,">
 <style>/*CSS*/</style>
+<!-- Google Analytics (GA4): page views plus shift_start / shift_end game events. Only on the live site, never for local or automated runs. -->
+<script>
+(function () {
+  var ID = 'G-RT2MLFFT5M';
+  if (navigator.webdriver || location.hostname !== 'kea.chrisbarlow.nz') return;
+  var s = document.createElement('script'); s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ID;
+  document.head.appendChild(s);
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  window.gtag = gtag;
+  gtag('js', new Date());
+  gtag('config', ID);
+  var mode = '', t0 = 0;
+  (function hook(n) {
+    var G = window.__G;
+    if (!G || !G.on) { if (n < 1200) setTimeout(function () { hook(n + 1); }, 100); return; }
+    G.on('mode:start', function (m) { mode = m || ''; t0 = performance.now(); gtag('event', 'shift_start', { mode: mode }); });
+    G.on('game:end', function (won, reason) {
+      gtag('event', 'shift_end', { mode: mode || G.mode || '', result: won ? 'won' : 'lost', reason: String(reason || ''), duration_s: Math.round((performance.now() - t0) / 1000) });
+    });
+  })(0);
+})();
+</script>
 </head>
 <body>
 <!-- Under ?shot=1, html.shot hides every .ui element except the in-shift HUD (.hud-play), so captures show the HUD, never menus. -->
